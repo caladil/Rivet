@@ -21,7 +21,7 @@ Installed onto a workstation — `cargo install --path cmd/<name> --force --lock
 ### `cargo-rivet`
 
 ```
-cargo-rivet 0.1.136 (<commit>)
+cargo-rivet 0.1.137 (<commit>)
 
 usage: cargo rivet setup            [--at DIR] [--name NAME] [--check]
        cargo rivet doctor           [--for run|app|image]...
@@ -39,7 +39,7 @@ usage: cargo rivet setup            [--at DIR] [--name NAME] [--check]
        cargo rivet run              --host HOST:PORT --identity DIR --pin HEX -- <rivet command>
        cargo rivet screenshot       --host HOST:PORT --identity DIR --pin HEX [--path P | --holder] [--out F.png] [--json]
        cargo rivet secrets          [DEVICE] APPLICATION [--host HOST:PORT --identity DIR --pin HEX] [--name N] [confirm]
-       cargo rivet backup           --host HOST:PORT --identity DIR --pin HEX --into DIR [confirm]
+       cargo rivet backup           --host HOST:PORT --identity DIR --pin HEX --into DIR [--service NAME]... [confirm]
        cargo rivet restore          --host HOST:PORT --identity DIR --pin HEX --service NAME --from FILE [confirm]
        cargo rivet backup-secrets   --host HOST:PORT --identity DIR --pin HEX --into DIR [confirm]
        cargo rivet restore-secrets  --host HOST:PORT --identity DIR --pin HEX --from DIR [--replace] [confirm]
@@ -955,7 +955,7 @@ Exit codes with --once: 0 a server answered, 1 none did, 2 argv was not usable.
 ### `femto`
 
 ```
-femto 0.1.136 — a tiny editor for Rivet.
+femto 0.1.137 — a tiny editor for Rivet.
 
 usage: femto <file>
 

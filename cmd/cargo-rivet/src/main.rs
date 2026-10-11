@@ -364,7 +364,7 @@ const VERBS: &[Verb] = &[
     // other's job.
     Verb {
         name: "backup",
-        synopsis: "--host HOST:PORT --identity DIR --pin HEX --into DIR [confirm]",
+        synopsis: "--host HOST:PORT --identity DIR --pin HEX --into DIR [--service NAME]... [confirm]",
     },
     // **`ADR-051` §12, `.rulings/` R-183 D1, 2026-09-14.** `backup`'s other
     // direction: one application's own backup, sent to the `restore-path` its

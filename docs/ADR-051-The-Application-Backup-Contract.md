@@ -340,7 +340,7 @@ migrating from CSV to SQLite carries its own answer across the version boundary.
 ## 8. `cargo rivet backup`
 
 ```text
-cargo rivet backup --host HOST:PORT --identity DIR --pin HEX --into DIR [confirm]
+cargo rivet backup --host HOST:PORT --identity DIR --pin HEX --into DIR [--service NAME]... [confirm]
 ```
 
 **It exists because a contract with no consumer is worse than no contract: it

@@ -274,7 +274,8 @@ its patterns, so it is kept in the journal rather than written here.
 **Deliberately kept:** the maintainer's name where it credits him as the
 author or the ruler of a decision, as `LICENSE-MIT` and `Cargo.toml` already
 do; `America/Chicago`, which the tree uses only as an example zone and an entry
-in the zone list, never as a default; and the WebAuthn vectors captured from a
+in the zone list, never as a default — a real event's time is written in UTC
+and never beside a local equivalent, which would state the zone it happened in; and the WebAuthn vectors captured from a
 real browser, whose relying party is `dev-01.local` and names nobody.
 `docs/INDEX.md` and `docs/index.json` are generated from every document,
 private ones included, and are regenerated from the public tree when it is cut.

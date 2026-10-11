@@ -39,7 +39,7 @@ a house style that is written down in working code.
 An earlier draft of `Phone-Pairing.md` assumed the phone client at issue was
 Trends'. **Reliquary serves Logbook**, so Logbook is the application
 that pairs to Reliquary and does so today. The maintainer's direction is that
-Reliquary becomes the backup custodian for all of his personal-data services,
+Reliquary becomes the backup custodian for his other services,
 Trends among them.
 
 **The next server in that line is not a Reliquary adopter yet, and its tree
@@ -396,7 +396,7 @@ the thing that must not diverge is the **pairing module**, and the thing that
 must diverge is **who holds a real credential**.
 
 What a variant would put inside the application that holds a device token for
-his live personal-data daemon:
+his live daemon:
 
 * an **exported** activity that accepts a pairing URI from any application on
   the phone (§3.2);
@@ -413,7 +413,7 @@ holding the payload grammar, the pin, the trust manager and the store, and an
 `app` module holding the screens and the command surface. `pairkit` is the
 Kotlin half of `Phone-Pairing.md`'s Phase C: the harness is where a converged
 implementation is proved against both services before it is imposed on two
-personal-data clients that work today.
+clients that work today.
 
 **The cost, stated rather than discovered later.** Until Trends' client and
 Logbook adopt `pairkit`, there are three copies of `CertificatePin` in the
@@ -426,7 +426,7 @@ and that is its own piece of work, not a free consequence of this one.
 **Where it lives: its own repository**, alongside the maintainer's other
 projects. It belongs to neither service, it tests both, it holds no
 real data, and an agent may drive it unattended without touching a tree that
-holds his personal-data code. Suggested `applicationId`
+holds a live service's code. Suggested `applicationId`
 `io.github.caladil.pairingharness`; nothing depends on the name, so renaming it
 before the first commit costs nothing.
 
@@ -682,7 +682,7 @@ migration would be lying. It will not prove:
 * **That Logbook or `trends-client` work.** The harness is a third program.
   A green harness says the ceremony and the protocol are sound; it says nothing
   about either application until each adopts `pairkit`, and adopting it is a
-  change to two personal-data clients that is itself unproven the day it lands.
+  change to two clients that is itself unproven the day it lands.
 * **The phone's platform data store, the Logbook signature seam, or the relay.** The harness
   reads no platform data and schedules no work, so background execution, doze
   behaviour and the release-signing deadline on the signature permission are all
@@ -721,17 +721,17 @@ neither. Three answers:
 | | What it means | Cost |
 | :-- | :-- | :-- |
 | **A. The phone gets a fleet-issued client certificate** | pairing issues, or is accompanied by, an X.509 key pair the machine will accept | the largest piece of unbuilt work in this subject: minting for a device that is not an operator, delivering the private half to an Android keystore, and revoking it |
-| **B. `proxy-auth = "none"` on the personal-data route, with the application's own token as the sole gate** | one manifest key, shipped in a signed artifact | contradicts `.rulings/` R-152, which named personal data as the case the operator certificate was for, and it would not by itself satisfy the daemon's own requirement on `:8787` |
+| **B. `proxy-auth = "none"` on the application's route, with the application's own token as the sole gate** | one manifest key, shipped in a signed artifact | contradicts `.rulings/` R-152, which named exactly this kind of application as the case the operator certificate was for, and it would not by itself satisfy the daemon's own requirement on `:8787` |
 | **C. Reach the backend directly** | the supervisor binds `0.0.0.0`, so the port is reachable | closed for Trends by `requiring_a_caller_certificate_from`; **open for Reliquary today**, which is the other half of the same reading |
 
 **Recommendation: rule A, and treat the client-certificate issue as its own
 design candidate rather than a clause of this one.** B and C each contradict a
 ruling or a design that is in force, and A contradicts neither; it is also the
-answer the maintainer's own end state implies — a phone that pairs to a Rivet-hosted personal-data service is a peer of the
+answer the maintainer's own end state implies — a phone that pairs to a Rivet-hosted service is a peer of the
 fleet, not a stranger with a bearer token.
 
 **And rule on C independently**, because it is live now: Reliquary's own port
-answers the LAN with `with_no_client_auth`, so the archive of a year of personal
+answers the LAN with `with_no_client_auth`, so the archive of a year of
 records is reachable behind a device token while the front door in front of it
 demands a certificate. That may be exactly what is wanted — it is what makes the
 phone able to back up at all — but it should be a decision in the record rather

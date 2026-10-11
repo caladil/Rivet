@@ -2622,22 +2622,22 @@ superseded rulings, kept because the record shows its own history and
 | 5 | Uninstalling a library | 122–180 |
 | 5.1 | The upgrade outage, closed by retention | 162–180 |
 | 6 | `apply edit --append` could comment out what it appended | 181–210 |
-| 7 | The tree is zero-scrub clean | 211–330 |
+| 7 | The tree is zero-scrub clean | 211–331 |
 | 7.1 | The maintainer's health — clean | 223–241 |
 | 7.2 | Absolute paths — clean | 242–258 |
-| 7.3 | Network details and names — clean in every published file | 259–281 |
-| 7.4 | The weather client's contact is the operator's setting — closed | 282–296 |
-| 7.5 | Identifiers read off the maintainer's hardware — clean | 297–313 |
-| 7.6 | His machines' names, and his name as sample data — clean | 314–330 |
-| 8 | Which parts of the record are published | 331–356 |
-| 9 | Handing out a built image | 357–364 |
-| 10 | CI on a public repository | 365–377 |
-| 11 | Which keys a card from the public tree trusts | 378–386 |
-| 12 | The README, and citations of private documents | 387–394 |
-| 13 | Producing the public tree | 395–436 |
-| 14 | Rivet Monitor | 437–443 |
-| 15 | The maintainer's own words in published documents | 444–476 |
-|  | History | 477–500 |
+| 7.3 | Network details and names — clean in every published file | 259–282 |
+| 7.4 | The weather client's contact is the operator's setting — closed | 283–297 |
+| 7.5 | Identifiers read off the maintainer's hardware — clean | 298–314 |
+| 7.6 | His machines' names, and his name as sample data — clean | 315–331 |
+| 8 | Which parts of the record are published | 332–357 |
+| 9 | Handing out a built image | 358–365 |
+| 10 | CI on a public repository | 366–378 |
+| 11 | Which keys a card from the public tree trusts | 379–387 |
+| 12 | The README, and citations of private documents | 388–395 |
+| 13 | Producing the public tree | 396–437 |
+| 14 | Rivet Monitor | 438–444 |
+| 15 | The maintainer's own words in published documents | 445–477 |
+|  | History | 478–501 |
 
 ## `SPEC-01-Rivet-as-a-Build-Target.md`
 

@@ -318,7 +318,7 @@ that is not the SDK's default"*; Reliquary's heading is the same sentence,
 byte for byte; TempMon's is *"Absent is not a failure, with one exception"* and
 the exception is `data_dir`. Three projects, one policy: **an absent data
 directory is fatal, and an absent setting is ordinary.** The reason each gives
-is its own — a year of personal records, the only complete copy, two years of
+is its own — a year of records, the only complete copy, two years of
 history — and the rule is identical.
 
 **Row 11 is the other half and is where the duplication is code rather than
@@ -550,7 +550,7 @@ and 9 add no dependency to anything.
 accessor is the SDK's and is correct as it stands: `app::data()` returning a
 `Result` is the right default for a library that cannot know whether an absent
 directory is fatal for its caller. What three adopters override is the
-*consequence*, and three personal-data and history-keeping services agreeing that an
+*consequence*, and three record- and history-keeping services agreeing that an
 absent directory is fatal is the maintainer's taste about his own programs — the
 same SDK serving a program that could reasonably continue would want the
 `Result`. Row 11 is the same shape: `settings::get_parsed` is right to answer
@@ -651,7 +651,7 @@ and it differs from `STATE.md` §3.4a's recommendation in one specific way that
 | **3** | Rows 4, 5 — the stop signal and the async-ready listener | `template-network-service` adopts them, which is the proof they were the platform's | `ADR-040` §10.6 already has the second half open; the template is the acceptance test |
 | **4** | `girder` — the neutral core: rows 2 and 11 | **TempMon**, with `cmd/tempmon` (the Windows and general-Linux root) as the neutral-side consumer | The only step that touches a domain crate, and TempMon's is the one whose port already matches Reliquary's |
 | **5** | `girder-rivet` — rows 1, 3, 10, and then row 12 | **TempMon**, then **Reliquary** | Row 3 is 32 identical lines away from Reliquary's; row 1 is 85 |
-| **6** | Trends | last | Its port diverges (§2.2) and it holds live personal data |
+| **6** | Trends | last | Its port diverges (§2.2) and it is in daily use |
 
 ### 6.1 Aura is right for step 1 and wrong for step 4, and the difference is measurable
 
@@ -695,7 +695,7 @@ right about which steps those are.
 
 1. **Do not restructure Trends or Reliquary unattended.** `STATE.md` §3.4
    already rules this for the pairing work and the reason is the same here: both
-   hold live personal data, and a shared-crate extraction touches the
+   are in daily use, and a shared-crate extraction touches the
    composition root, the journal and the startup refusal — every path a failure
    would travel on. Step 6 is last for that reason and needs the maintainer's
    go-ahead rather than his keyboard.

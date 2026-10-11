@@ -99,7 +99,7 @@ pub(crate) const TIMEOUT: std::time::Duration = std::time::Duration::from_secs(3
 
 pub fn usage() -> String {
     format!(
-        "usage: cargo rivet backup --host HOST:PORT --identity DIR --pin HEX --into DIR [confirm]\n\
+        "usage: cargo rivet backup --host HOST:PORT --identity DIR --pin HEX --into DIR [--service NAME]... [confirm]\n\
          \n\
          Reads what a machine's applications OFFER to back up, fetches each one\n\
          over the control plane, checks it, and writes it into --into. ADR-051.\n\

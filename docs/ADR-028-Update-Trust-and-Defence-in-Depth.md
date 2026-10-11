@@ -39,7 +39,7 @@ section in any of them.
 | :-- | :-- | :-- |
 | **Authenticity** | **provides it.** The bytes are ours. | — |
 | **Freshness** | does not. A signed *old* image is still validly signed. | A replayed, correctly-signed, known-vulnerable image installs cleanly. §6. |
-| **Confidentiality** | does not. | An observer learns which version every machine runs — a fleet-wide inventory of which boxes are unpatched. `PLAN.md` §9.2 puts Trends and its personal data on one of them. |
+| **Confidentiality** | does not. | An observer learns which version every machine runs — a fleet-wide inventory of which boxes are unpatched. Some of those boxes hold their owner's personal data. |
 | **Authorisation** | does not. It says nothing about *who may say "install it"*, which one, or when. | The artifact is genuine and the order to apply it is anyone's. §4. |
 | **Availability** | does not. | An on-path attacker who simply withholds updates leaves a machine vulnerable indefinitely, reporting perfect health. |
 | **A safe verifier** | does not — it *is* the thing being protected. | Everything upstream of the check parses attacker-controlled bytes. |

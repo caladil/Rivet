@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "root": "docs",
-  "commit": null,
+  "commit": "1d61fcdeb456befd921b3ff01ba8e114bbd997c2",
   "files": 71,
   "sections": 2637,
   "cite": "Sections are addressed as `<file> §<number>`; `line`/`until` are 1-based inclusive line numbers within `<file>`, so a section can be FETCHED and not merely located.",
@@ -21175,7 +21175,7 @@
         "line": 1,
         "superseded": false,
         "retired": false,
-        "until": 500
+        "until": 501
       },
       {
         "level": 2,
@@ -21247,7 +21247,7 @@
         "line": 211,
         "superseded": false,
         "retired": false,
-        "until": 330
+        "until": 331
       },
       {
         "level": 3,
@@ -21274,115 +21274,115 @@
         "line": 259,
         "superseded": false,
         "retired": false,
-        "until": 281
+        "until": 282
       },
       {
         "level": 3,
         "number": "7.4",
         "title": "The weather client's contact is the operator's setting — closed",
-        "line": 282,
+        "line": 283,
         "superseded": false,
         "retired": false,
-        "until": 296
+        "until": 297
       },
       {
         "level": 3,
         "number": "7.5",
         "title": "Identifiers read off the maintainer's hardware — clean",
-        "line": 297,
+        "line": 298,
         "superseded": false,
         "retired": false,
-        "until": 313
+        "until": 314
       },
       {
         "level": 3,
         "number": "7.6",
         "title": "His machines' names, and his name as sample data — clean",
-        "line": 314,
+        "line": 315,
         "superseded": false,
         "retired": false,
-        "until": 330
+        "until": 331
       },
       {
         "level": 2,
         "number": "8",
         "title": "Which parts of the record are published",
-        "line": 331,
+        "line": 332,
         "superseded": false,
         "retired": false,
-        "until": 356
+        "until": 357
       },
       {
         "level": 2,
         "number": "9",
         "title": "Handing out a built image",
-        "line": 357,
+        "line": 358,
         "superseded": false,
         "retired": false,
-        "until": 364
+        "until": 365
       },
       {
         "level": 2,
         "number": "10",
         "title": "CI on a public repository",
-        "line": 365,
+        "line": 366,
         "superseded": false,
         "retired": false,
-        "until": 377
+        "until": 378
       },
       {
         "level": 2,
         "number": "11",
         "title": "Which keys a card from the public tree trusts",
-        "line": 378,
+        "line": 379,
         "superseded": false,
         "retired": false,
-        "until": 386
+        "until": 387
       },
       {
         "level": 2,
         "number": "12",
         "title": "The README, and citations of private documents",
-        "line": 387,
+        "line": 388,
         "superseded": false,
         "retired": false,
-        "until": 394
+        "until": 395
       },
       {
         "level": 2,
         "number": "13",
         "title": "Producing the public tree",
-        "line": 395,
+        "line": 396,
         "superseded": false,
         "retired": false,
-        "until": 436
+        "until": 437
       },
       {
         "level": 2,
         "number": "14",
         "title": "Rivet Monitor",
-        "line": 437,
+        "line": 438,
         "superseded": false,
         "retired": false,
-        "until": 443
+        "until": 444
       },
       {
         "level": 2,
         "number": "15",
         "title": "The maintainer's own words in published documents",
-        "line": 444,
+        "line": 445,
         "superseded": false,
         "retired": false,
-        "until": 476
+        "until": 477
       },
       {
         "level": 2,
         "number": null,
         "title": "History",
-        "line": 477,
+        "line": 478,
         "superseded": false,
         "retired": false,
-        "until": 500
+        "until": 501
       }
     ],
     "SPEC-01-Rivet-as-a-Build-Target.md": [

@@ -266,7 +266,7 @@
 1	citations	`PLAN.md` has no §89.2 and has no §89 either — the whole path is broken
 3	citations	`PLAN.md` has no §9 and has no §9 either
 1	citations	`PLAN.md` has no §9.1 and has no §9 either — the whole path is broken
-12	citations	`PLAN.md` has no §9.2 and has no §9 either — the whole path is broken
+11	citations	`PLAN.md` has no §9.2 and has no §9 either — the whole path is broken
 7	citations	`PLAN.md` has no §9.4 and has no §9 either — the whole path is broken
 2	citations	`PLAN.md` has no §90.3 and has no §90 either — the whole path is broken
 1	citations	`PLAN.md` has no §91 and has no §91 either
@@ -421,7 +421,7 @@
 5	citations	bare §94.7 is not a section of ANY document in the corpus
 2	citations	bare §97 is not a section of ANY document in the corpus
 3806	deep-citations	a DOTTED citation in Rust — code cites at most an H2 (AGENTS.md §2 rule 8); move the deeper reference into the surrounding prose or cite the H2 alone
-954	plan-citations	`PLAN.md` is cited from outside itself — it is a JOURNAL, renumbered and cut, and ~97% of citations into it are already dead. Promote the fact to an ADR and cite that instead
+953	plan-citations	`PLAN.md` is cited from outside itself — it is a JOURNAL, renumbered and cut, and ~97% of citations into it are already dead. Promote the fact to an ADR and cite that instead
 117	rot-markers	"does not exist" asserts STATE, not reason — a claim like this was true when typed and carries no expiry. Put it in a test or a generated artifact, or rewrite it as the reason that will still hold
 8	rot-markers	"does not yet" asserts STATE, not reason — a claim like this was true when typed and carries no expiry. Put it in a test or a generated artifact, or rewrite it as the reason that will still hold
 106	rot-markers	"has never" asserts STATE, not reason — a claim like this was true when typed and carries no expiry. Put it in a test or a generated artifact, or rewrite it as the reason that will still hold

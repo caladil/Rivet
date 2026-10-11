@@ -245,7 +245,7 @@ somebody who knows a code is outstanding can burn it with five wrong guesses.
 Reliquary accepted that deliberately, because codes are cheap to mint and the
 alternative is worse. Trends will inherit that trade and should be told.
 
-*No maintainer time, but it restructures two personal-data codebases, which
+*No maintainer time, but it restructures two live codebases, which
 `STATE.md` §3.4 says is not an unattended act. It needs his go-ahead, not his
 keyboard.*
 
@@ -278,7 +278,7 @@ its value at a fraction of its cost.
    trade.** Phase A raised this as *"quota, rate, or the adopter's choice"* and
    §3.3 has since answered it: there is one design and one gap, so both adopt
    quota **and** floor. What still needs saying out loud is that this **adds a
-   guessing defence to a personal-data service that lacks one**, and that Trends
+   guessing defence to a live service that lacks one**, and that Trends
    inherits the cost — a code can be burned by five wrong guesses. That is a
    change to how Trends is attacked, so it is ruled rather than merged.
 1. **Does Reliquary get a certificate pin?** Decides one payload shape or two.

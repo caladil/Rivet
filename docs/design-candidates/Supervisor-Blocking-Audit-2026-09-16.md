@@ -336,9 +336,8 @@ does not read as reassurance.
 
 ## 7. Ranked hypotheses
 
-Ranked by how plausibly each explains all three incidents — 2026-09-11 23:05
-local, 2026-09-14 about 06:43 local, and 2026-09-16 15:16 local — not the last one
-alone. A hypothesis that needs a rare trigger has to explain why the trigger fired
+Ranked by how plausibly each explains all three incidents — 2026-09-12 04:05Z,
+2026-09-14 about 11:43Z, and 2026-09-16 20:16Z — not the last one alone. A hypothesis that needs a rare trigger has to explain why the trigger fired
 three times in five days.
 
 ### H1 — The supervisor is blocked writing its own journal to a console that stopped draining (B4)
