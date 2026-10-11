@@ -18,7 +18,7 @@ thirty-seven files is expensive for the asker and free for the machine.
 This works because this project **cites by section and never by line**.
 Ask it where something is, then read that section.
 
-**2637 sections across 71 files.** `~~struck~~` headings are
+**2638 sections across 71 files.** `~~struck~~` headings are
 superseded rulings, kept because the record shows its own history and
 *"where was this ruled before it was overturned"* is a real question.
 
@@ -1165,17 +1165,18 @@ superseded rulings, kept because the record shows its own history and
 | 6 | Consequences | 640–659 |
 | 7 | Open | 660–711 |
 |  | The git path is the emulator's, and nobody had noticed — 2026-08-27 | 712–747 |
-| 8 | RULED 2026-08-30: this project is Docker, and WSL leaves the loop | 748–854 |
+| 8 | RULED 2026-08-30: this project is Docker, and WSL leaves the loop | 748–886 |
 | 8.1 | It was never actually a close call, and pretending otherwise cost time | 759–771 |
 | 8.2 | What kept WSL alive, and why neither reason survives | 772–787 |
 | 8.3 | The cost, stated rather than glossed | 788–805 |
 | 8.4 | What this does NOT change | 806–829 |
-| 8.5 | Built, and the half that is not | 830–854 |
-|  | One defect, found by running it | 844–854 |
-|  | History | 855–910 |
-|  | In §4 — three cells of the capability table | 870–889 |
-|  | In §4.2 — `--netd` settled nothing | 890–897 |
-|  | In §9 — four open items that closed | 898–910 |
+| 8.5 | Built, and the half that is not | 830–852 |
+|  | One defect, found by running it | 844–852 |
+| 8.6 | The build cache in use has a budget | 853–886 |
+|  | History | 887–942 |
+|  | In §4 — three cells of the capability table | 902–921 |
+|  | In §4.2 — `--netd` settled nothing | 922–929 |
+|  | In §9 — four open items that closed | 930–942 |
 
 ## `ADR-027-Artifact-Naming.md`
 

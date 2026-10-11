@@ -850,6 +850,38 @@ directory that is there. `build-card.sh` had already solved it and the fix is
 its line, taken verbatim. **The same class as everything else this week: the
 knowledge existed one file away and was not consulted.**
 
+### 8.6 The build cache in use has a budget
+
+**Cargo never deletes a build it has superseded**, and a crate's version is
+part of every artifact's hash. Every release bumps the workspace version, so
+every release leaves a complete stale copy of every workspace crate in the
+container's cargo target volume: objects, test binaries and incremental state.
+Left alone, that volume grows with every release, without limit.
+
+**On Windows and macOS the cost lands on the host drive.** Named volumes live
+in Docker's virtual disk. A sparse disk returns freed space to the host, but
+only what something frees, and nothing frees this cache. The bound therefore has to come from the build tooling, because the
+disk has no notion of a cache.
+
+**So `tools/container/exec.sh` measures the target volume it is about to mount
+once a day, and removes it when it is over budget** (80 GB unless
+`RIVET_TARGET_BUDGET_GB` says otherwise). The next build is cold. That costs
+one full compile every few days, against a volume measured at 234 GB.
+
+| | Bounds the growth | Cost |
+| :-- | :-- | :-- |
+| **A daily size budget, removing the whole volume (chosen)** | yes | one cold build each time the budget trips |
+| Remove only artifacts of superseded versions | yes | cargo exposes no map from artifact to version, so the script would guess from file names and could delete the wrong thing |
+| Turn off incremental compilation in the container | about halves the rate, no bound | every rebuild in the container slower, permanently |
+| Rely on Docker's disk returning freed space | no | a sparse disk gives back what is freed, and nothing frees this cache |
+| Cap Docker's virtual disk | yes, as a ceiling | host configuration, not this repository's, and a full disk fails every build at once; Docker Desktop's disk-size setting has been seen not to limit an existing WSL 2 disk |
+
+Docker refuses to remove a volume that a running container holds, so the
+budget can't pull a cache out from under a build in progress. The removal
+waits for the next invocation. Superseded `rivet-card-build` images are removed
+in the same daily pass. The worktree-cache sweep above handles caches whose
+worktree is gone. This handles the one that is still in use.
+
 ---
 
 ## History

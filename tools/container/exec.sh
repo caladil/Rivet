@@ -393,5 +393,71 @@ if ! have_image; then
         "$(hostpath "$HERE")"
 fi
 
+# ## THE CACHE IN USE HAS A BUDGET, BECAUSE CARGO NEVER DELETES A BUILD
+#
+# The sweep above reaps caches whose worktree is gone. It never touches the
+# cache in use, and that one grows without bound: cargo keeps every artifact it
+# has ever built and removes none it has superseded. A crate's version is part
+# of every artifact's hash, and every release bumps the workspace version, so
+# each release leaves a complete stale copy of every workspace crate behind it
+# (objects, test binaries and incremental state). One cache was measured at
+# 234 GB holding 83 incremental copies and 35 compiled copies of `rivet-core`
+# alone.
+#
+# **Nothing else frees it.** The volume lives in Docker's virtual disk, and a
+# sparse disk hands freed space back to the host, but only what something
+# frees. A cache that is never emptied fills the drive the disk sits on.
+#
+# So once a day, the first invocation measures the cache it is about to mount
+# and removes the volume if it is over budget. The build after that starts
+# cold, which costs one full compile every few days. Docker refuses to remove a
+# volume a running container holds, so a build in progress elsewhere keeps its
+# cache and the next invocation tries again. `RIVET_TARGET_BUDGET_GB` sets the
+# budget, and `RIVET_NO_CACHE_SWEEP=1` turns this off along with the sweep.
+#
+# Superseded build images go in the same pass. A bump of `image-version` builds
+# a new image beside the old one, and nothing used to remove the old one.
+TARGET_VOLUME=rivet-card-target$CACHE_TAG
+TARGET_BUDGET_GB=${RIVET_TARGET_BUDGET_GB:-80}
+BUDGET_STAMP=$REPO/target/.container-cache-measured$CACHE_TAG
+
+housekeeping() {
+    if [ -f "$BUDGET_STAMP" ] && [ -n "$(find "$BUDGET_STAMP" -mmin -1440 2>/dev/null)" ]; then
+        return 0
+    fi
+    for _old in $("$DOCKER" image ls rivet-card-build --format '{{.Tag}}' 2>/dev/null); do
+        [ "$_old" != "$IMAGE_VERSION" ] || continue
+        echo "exec.sh: removing rivet-card-build:$_old, superseded by $IMAGE." >&2
+        "$DOCKER" image rm "rivet-card-build:$_old" >/dev/null 2>&1 \
+            || echo "exec.sh: could not remove rivet-card-build:$_old — left in place" >&2
+    done
+    if "$DOCKER" volume inspect "$TARGET_VOLUME" >/dev/null 2>&1; then
+        echo "exec.sh: measuring $TARGET_VOLUME against its ${TARGET_BUDGET_GB} GB budget (once a day)..." >&2
+        # A measurement that fails is reported and not acted on: an empty
+        # answer must not read as a small cache, nor as a large one.
+        _kb=$("$DOCKER" run $PLATFORM --rm -v "$TARGET_VOLUME:/target:ro" "$IMAGE" du -sxk /target 2>/dev/null | cut -f1) || _kb=
+        case "$_kb" in
+            ''|*[!0-9]*)
+                echo "exec.sh: could not measure $TARGET_VOLUME, so its budget was not checked." >&2
+                return 0
+                ;;
+        esac
+        _gb=$((_kb / 1048576))
+        if [ "$_gb" -ge "$TARGET_BUDGET_GB" ]; then
+            echo "exec.sh: $TARGET_VOLUME holds $_gb GB, over its $TARGET_BUDGET_GB GB budget. Removing it;" >&2
+            echo "         this build starts cold." >&2
+            if ! "$DOCKER" volume rm "$TARGET_VOLUME" >/dev/null 2>&1; then
+                echo "exec.sh: $TARGET_VOLUME is held by another container — left in place, tried again next run." >&2
+                return 0
+            fi
+        fi
+    fi
+    mkdir -p "$REPO/target" && touch "$BUDGET_STAMP"
+}
+
+if [ -z "${RIVET_NO_CACHE_SWEEP:-}" ]; then
+    housekeeping
+fi
+
 # shellcheck disable=SC2086
 exec $DOCKER run $PLATFORM --rm $USER_ARG -w /rivet $MOUNTS $ENVS "$IMAGE" "$@"

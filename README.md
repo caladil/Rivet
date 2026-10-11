@@ -578,6 +578,16 @@ is ongoing work.
 
 ---
 
+## Related projects
+
+* **[Rivet Monitor](https://github.com/caladil/RivetMonitor)** — the
+  workstation companion for a fleet of Rivets. It watches each machine's
+  health over the control plane and runs `cargo rivet backup` on a schedule,
+  keeping a mirror of what each machine's applications offer. Whether a host
+  is monitored or backed up is set there, not here (`docs/ADR-059`).
+
+---
+
 ## License
 
 Licensed under either of

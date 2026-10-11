@@ -1,9 +1,9 @@
 {
   "schema": 1,
   "root": "docs",
-  "commit": "1d61fcdeb456befd921b3ff01ba8e114bbd997c2",
+  "commit": "5f8812ec2904bf80ff8223af1294684adb075826",
   "files": 71,
-  "sections": 2637,
+  "sections": 2638,
   "cite": "Sections are addressed as `<file> §<number>`; `line`/`until` are 1-based inclusive line numbers within `<file>`, so a section can be FETCHED and not merely located.",
   "documents": {
     "ADR-001-Language-and-Dependency-Posture.md": [
@@ -9154,7 +9154,7 @@
         "line": 1,
         "superseded": false,
         "retired": false,
-        "until": 910
+        "until": 942
       },
       {
         "level": 2,
@@ -9415,7 +9415,7 @@
         "line": 748,
         "superseded": false,
         "retired": false,
-        "until": 854
+        "until": 886
       },
       {
         "level": 3,
@@ -9460,7 +9460,7 @@
         "line": 830,
         "superseded": false,
         "retired": false,
-        "until": 854
+        "until": 852
       },
       {
         "level": 4,
@@ -9469,43 +9469,52 @@
         "line": 844,
         "superseded": false,
         "retired": false,
-        "until": 854
+        "until": 852
+      },
+      {
+        "level": 3,
+        "number": "8.6",
+        "title": "The build cache in use has a budget",
+        "line": 853,
+        "superseded": false,
+        "retired": false,
+        "until": 886
       },
       {
         "level": 2,
         "number": null,
         "title": "History",
-        "line": 855,
+        "line": 887,
         "superseded": false,
         "retired": false,
-        "until": 910
+        "until": 942
       },
       {
         "level": 3,
         "number": null,
         "title": "In §4 — three cells of the capability table",
-        "line": 870,
+        "line": 902,
         "superseded": false,
         "retired": false,
-        "until": 889
+        "until": 921
       },
       {
         "level": 3,
         "number": null,
         "title": "In §4.2 — `--netd` settled nothing",
-        "line": 890,
+        "line": 922,
         "superseded": false,
         "retired": false,
-        "until": 897
+        "until": 929
       },
       {
         "level": 3,
         "number": null,
         "title": "In §9 — four open items that closed",
-        "line": 898,
+        "line": 930,
         "superseded": false,
         "retired": false,
-        "until": 910
+        "until": 942
       }
     ],
     "ADR-027-Artifact-Naming.md": [
