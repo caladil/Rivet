@@ -1,0 +1,28 @@
+card 1
+slot: tertiary
+ttl: 60
+block: reading
+value: 52.4
+unit: °C
+caption: SoC temperature
+state: ok
+role: normal
+block: list
+caption: rivet-01
+row
+label: uptime
+trail: 3d 4h
+role: normal
+row
+label: memory
+trail: 413 MiB free of 924
+role: normal
+row
+label: load
+trail: 0.14
+role: normal
+row
+label: tasks
+trail: 128
+role: normal
+end

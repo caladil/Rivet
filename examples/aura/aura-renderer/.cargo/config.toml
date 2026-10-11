@@ -1,0 +1,62 @@
+# **The cross linker. Without this file this crate builds HERE and not anywhere
+# else** — `ADR-040` §10.3, and `STATE.md` §2 restates the failure: a workspace
+# with no `.cargo/config.toml` links with the HOST `cc`.
+#
+# `.cargo/config.toml` is discovered by walking up the DIRECTORY tree, not the
+# workspace, so a crate under `examples/` would otherwise pick up whatever the
+# repository root happens to carry — and `cargo rivet package` runs its own
+# `cargo build`, which knows nothing about a variable exported for a different
+# command.
+#
+# What its absence looks like is not a message about linkers. Every crate
+# compiles cleanly for the target and then:
+#
+#     /usr/bin/ld: crt1.o: Relocations in generic ELF (EM: 183)
+#     /usr/bin/ld: crt1.o: error adding symbols: file in wrong format
+#
+# ## This program is DYNAMIC because it is an ADDON HOST, and for no other
+# ## reason
+#
+# It links no system library and names none. `-crt-static` is here for the
+# reason `aura-controller`'s copy gives: **a statically linked musl program
+# carries a `dlopen` that always fails.** musl's static libc supplies the symbol
+# as a stub that returns an error for every argument, so the background pack
+# `Cargo.toml`'s `accepts-class` asks for could be installed, matched and placed
+# on `LD_LIBRARY_PATH` correctly and still never open. `src/pack.rs` is the
+# caller. `-C target-feature=-crt-static` is what produces a binary with an
+# interpreter — `/lib/ld-musl-aarch64.so.1` — and a real loader behind it.
+#
+# **And `rust-lld` cannot do the dynamic link.** It has no sysroot in which to
+# resolve `libc.so`, and what it says is `unable to find library -lc`, which
+# names neither the sysroot nor the flag above. The Buildroot cross GCC drives
+# the link instead.
+#
+# ## `-l drm` and the staging `-L` were REMOVED on 2026-09-20
+#
+# They were here because this program took DRM master and ran a dumb-buffer
+# modeset, and the maintainer's ruling on the framebuffer console was to link
+# `libdrm` (.rulings/ R-352). `ADR-058` replaced the lease with a Wayland
+# surface: the compositor holds DRM master, this program talks `wl_shm` over a
+# socket, and `smithay-client-toolkit` with `default-features = false` is pure
+# Rust. Nothing in this crate references a DRM symbol any more.
+#
+# Leaving the two flags would have been invisible rather than harmless. They
+# survived the conversion and put `libdrm.so.2` back in `NEEDED` — measured, not
+# assumed — on a program whose manifest now says `devices = []` and which is
+# therefore granted no `/dev/dri` to use it on. The staging `-L` is worse than
+# the `-l`: it widens where a future accident can link from, which is the
+# argument `aura-controller`'s config already makes for not having it.
+#
+# **The paths are the build container's.** `ADR-026` §7 makes the container the
+# Linux side of this project and `tools/container/exec.sh` mounts the Buildroot
+# tree at `/br`. This crate cannot be built anywhere else.
+[target.aarch64-unknown-linux-musl]
+linker = "/br/host/bin/aarch64-linux-gcc"
+rustflags = [
+    # An interpreter and a working `dlopen`, rather than a stub that refuses.
+    "-C", "target-feature=-crt-static",
+    # Let GCC drive the link: `rust-lld` cannot find `libgcc_s` or `libgcc`,
+    # which live under lib/gcc/<tuple>/<version>/ — a path the cross GCC
+    # computes and nothing else knows.
+    "-C", "link-self-contained=no",
+]

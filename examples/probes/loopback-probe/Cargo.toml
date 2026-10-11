@@ -1,0 +1,24 @@
+# A probe that tries loopback TCP connections as an ordinary application's uid
+# and prints what happened to each — the test of `ADR-023` §3A's guard from the
+# side of a program the guard is meant to refuse.
+#
+# `[workspace]` is EMPTY and present on purpose, for `hello-rivet`'s reason: an
+# example is not a member of the repository's workspace.
+[workspace]
+
+[package]
+name = "loopback-probe"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[package.metadata.rivet]
+kind    = "daemon"
+# **Runs once.** It tries each port, prints, and exits 0, which leaves it
+# exited; `apply service-restart loopback-probe confirm` runs it again.
+restart = "on-failure"
+ready   = "none"
+title   = "Loopback Probe"
+
+[dependencies]

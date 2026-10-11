@@ -1,0 +1,57 @@
+# **The cross linker. Without this file this crate builds HERE and not anywhere
+# else** — `ADR-040` §10.3, and `STATE.md` §2 restates the failure: a workspace
+# with no `.cargo/config.toml` links with the HOST `cc`.
+#
+# `.cargo/config.toml` is discovered by walking up the DIRECTORY tree, not the
+# workspace, so a crate under `examples/` would otherwise pick up whatever the
+# repository root happens to carry — and `cargo rivet package` runs its own
+# `cargo build`, which knows nothing about a variable exported for a different
+# command.
+#
+# What its absence looks like is not a message about linkers. Every crate
+# compiles cleanly for the target and then:
+#
+#     /usr/bin/ld: crt1.o: Relocations in generic ELF (EM: 183)
+#     /usr/bin/ld: crt1.o: error adding symbols: file in wrong format
+#
+# ## This program is DYNAMIC, and the two flags below are why
+#
+# It was a fully static musl binary linked by `rust-lld` until 2026-09-19, when
+# it became an addon host. **A statically linked musl program carries a `dlopen`
+# that always fails** — musl's static libc supplies the symbol as a stub so that
+# a program which calls it still links, and it returns an error for every
+# argument. So the reading source `Cargo.toml`'s `accepts-class` asks for could
+# have been installed correctly, matched correctly, and placed on this program's
+# `LD_LIBRARY_PATH` correctly, and still never have opened.
+#
+# `-C target-feature=-crt-static` is what produces a binary with an interpreter
+# — `/lib/ld-musl-aarch64.so.1` — and a real loader behind `dlopen`.
+#
+# **And `rust-lld` cannot do the dynamic link.** It has no sysroot in which to
+# resolve `libc.so`, and what it says is `unable to find library -lc`, which
+# names neither the sysroot nor the flag above. The Buildroot cross GCC drives
+# the link instead, exactly as `examples/probes/addon-probe` and
+# `addon-probe-host` found on 2026-09-19
+# (`docs/design-candidates/Addon-Call-Boundary-2026-09-19.md` §6).
+#
+# ## What is deliberately NOT here
+#
+# `aura-renderer` carries two settings past these — `-L /br/staging/usr/lib` and
+# `-l drm` — because it takes DRM master. This program draws nothing and names
+# no system library, so its closure is `libc.so` and `libgcc_s.so.1`, both in
+# `PUBLIC_LIBRARIES`, and `library = []` in its manifest stays true. Adding the
+# staging `-L` here would only widen where a future accident could link from.
+#
+# **The paths are the build container's.** `ADR-026` §7 makes the container the
+# Linux side of this project and `tools/container/exec.sh` mounts the Buildroot
+# tree at `/br`. This crate cannot be built anywhere else.
+[target.aarch64-unknown-linux-musl]
+linker = "/br/host/bin/aarch64-linux-gcc"
+rustflags = [
+    # An interpreter and a working `dlopen`, rather than a stub that refuses.
+    "-C", "target-feature=-crt-static",
+    # Let GCC drive the link: `rust-lld` cannot find `libgcc_s` or `libgcc`,
+    # which live under lib/gcc/<tuple>/<version>/ — a path the cross GCC
+    # computes and nothing else knows.
+    "-C", "link-self-contained=no",
+]

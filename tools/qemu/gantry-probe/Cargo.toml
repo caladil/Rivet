@@ -1,0 +1,41 @@
+# **The client `tools/qemu/adr-061-gantry-proof.sh` installs as `gantry`** —
+# `ADR-061` §6 and §7, wire format `SPEC-06`.
+#
+# One binary, installed under three names by the proof, and it behaves by the
+# name it was installed as (the last component above its `RIVET_APP_DATA`):
+#
+# * as `gantry`, it is granted `rivet-fleetd:gantry` and speaks `SPEC-06` over
+#   it at every start — `fleet`, `artifacts`, `enrol` once, `phones` — writing
+#   each reply line verbatim into its data directory, where the proof reads it
+#   back with `get file`. It also serves two routes behind `rivet-proxyd`: a
+#   `plain:install` page and an `app:api/echo` that answers with the
+#   `Authorization` header it was handed;
+# * as any other name, it does the same round against whatever it was granted,
+#   or, granted nothing, against the provider's socket path directly, and
+#   records what happened.
+#
+# **It is a FIXTURE, not an example to copy.** The phone key it enrolls is
+# HAND-COMPOSED: a structurally valid P-256 SubjectPublicKeyInfo whose point is
+# two runs of repeated bytes, which `SPEC-06` §6 says the provider checks for
+# shape and not for lying on the curve. No phone holds it.
+[workspace]
+
+[package]
+name = "gantry-probe"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[dependencies]
+# **The SDK an adopter links**, with `serve` for the TLS server configuration
+# `ADR-046` §4 tells a backend to build.
+rivetos-sdk = { path = "../../../rivet-sdk", features = ["serve"] }
+# The server connection itself. Same version and features as the SDK's, so
+# there is one rustls in this build.
+rustls = { version = "0.23", default-features = false, features = ["std", "ring"] }
+
+[profile.release]
+panic = "abort"
+opt-level = "z"
+strip = true

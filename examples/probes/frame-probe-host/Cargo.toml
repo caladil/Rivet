@@ -1,0 +1,63 @@
+# **The frame boundary's host half** — a Rust application that opens a
+# class-matched pack, hands it a buffer the application itself allocated, and
+# then READS THE BYTES BACK.
+#
+# `examples/probes/addon-probe-host` is its sibling: that one proves the JSON
+# half of the addon protocol on hardware, and this one proves the `#[repr(C)]`
+# drawing entry `.rulings/` R-199 D2 confirmed.
+#
+# Four things it exists to establish on a board, none of which a unit test can
+# reach — a unit test has one compilation of both halves, and the whole
+# question here is what happens when there are two:
+#
+#   1. a descriptor composed in one binary is read correctly by another, built
+#      separately, linked separately, and loaded at run time;
+#   2. the pixels land inside the lines — the visible area written, the padding
+#      between rows untouched;
+#   3. a descriptor from a version the pack does not speak is refused with
+#      every byte of the surface still as the host left it;
+#   4. what one frame across that boundary COSTS, against `SPEC-04` §10's
+#      numbers for the same board.
+#
+# **It is dynamic because of how it is BUILT**, as `addon-probe-host`'s own
+# manifest explains at length: `-C target-feature=-crt-static` is what produces
+# a binary with an interpreter and a real loader behind `dlopen`, and
+# `.cargo/config.toml` beside this file is where that lives. Its closure is
+# `libc.so` and `libgcc_s.so.1`, both public, so `library = []` stays true.
+[workspace]
+
+[package]
+name = "frame-probe-host"
+version = "1.0.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[package.metadata.rivet]
+kind    = "daemon"
+# **`never`.** This probe reports, measures and then idles. Under `always` its
+# journal would be the same report on repeat, which is a worse way to read a
+# proof — and the measurement would compete with itself for the board's CPU.
+restart = "never"
+ready   = "none"
+network = "none"
+state   = "private"
+# **The join.** `ADR-053`: the supervisor puts every installed library whose
+# `provides-class` is in this list onto this program's `LD_LIBRARY_PATH` and
+# names it in `RIVET_ADDONS`. A class of its own, so nothing here disturbs the
+# two `probe-source` libraries that are standing evidence of something else.
+accepts-class = ["probe-background"]
+library = []
+devices = []
+
+[dependencies]
+rivetos-addon = { path = "../../../rivet-addon" }
+serde_json = "1"
+
+[profile.release]
+# **`opt-level = 3`, matching the pack.** This binary holds one half of a
+# comparison — the same fill, done locally, against the same fill done across
+# the boundary — and building the two halves at different optimisation levels
+# would put the difference between two compilers' output into a number
+# reported as the cost of a call.
+opt-level = 3

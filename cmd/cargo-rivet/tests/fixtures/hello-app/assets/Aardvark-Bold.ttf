@@ -1,0 +1,7 @@
+Not a typeface. Hand-composed, and named like one on purpose.
+
+`PLAN.md` §119.3: `aura-renderer` was deployed without its four faces because
+`--asset` was the only way in and nobody typed it, then exited on
+`SourceCodePro-Bold.ttf: No such file or directory` with the display hand-over
+working perfectly. This file stands in for one of those, and its name sorts
+before `greeting.txt` so the walker's ordering is visible rather than assumed.

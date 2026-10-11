@@ -1,0 +1,145 @@
+# Rust
+/target/
+# `cmd/cargo-rivet`'s fixture crates are deliberately NOT workspace members —
+# they are driven the way somebody else's crate would be — so the anchored
+# `/target/` above does not cover them.
+cmd/cargo-rivet/tests/fixtures/*/target/
+# `tools/qemu/testapp` is its own workspace root for the same reason — it stands
+# in for somebody else's application (ADR-017 §4's second origin), so it is
+# built the way one would be.
+tools/qemu/testapp/target/
+# And so are the two `ADR-041` §8.4 fixtures — a virtual Bluetooth controller
+# and a consumer that will not read — for the same reason.
+tools/qemu/vhci-fixture/target/
+tools/qemu/ble-backpressure/target/
+# `tools/qemu/cpu-spin-probe` is its own workspace root too — it stands in for
+# a SYSTEM service (`rivet-timed` or `rivet-bluetoothd`), not a workspace
+# member, for `testapp`'s reason.
+tools/qemu/cpu-spin-probe/target/
+# **`cargo rivet package` writes beside the CRATE, not beside the workspace.**
+# It is run from a member crate's own directory and emits into `<crate>/target/
+# rivet/`, which the anchored `/target/` above does not reach — so packaging any
+# workspace member for a board leaves an untracked target tree under `cmd/`,
+# and a `git add -A` after one sweeps several hundred build files into a commit.
+# That happened on 2026-09-16, packaging `rivet-fleetd` for `ADR-056`'s button.
+cmd/*/target/
+examples/*/target/
+examples/*/*/target/
+**/*.rs.bk
+*.pdb
+
+# Image build output — generated, never committed
+/build/
+/out/
+/rootfs/
+*.img
+*.img.xz
+# Signed packages — ADR-029's container, in any of its three kinds. A build
+# product like the card image beside it, and `cargo rivet package` writes one
+# into a target directory by default.
+*.rvt
+*.tar
+*.tar.gz
+*.ext4
+
+# Vendored binaries and blobs — fetched by the build, not tracked.
+# The Broadcom firmware and the Raspberry Pi boot firmware are redistributable
+# but are not this project's to carry.
+#
+# **`/vendor/` IS NOT IGNORED WHOLESALE, AND MUST NOT BECOME SO.** Since
+# 2026-09-04 it also holds `vendor/ixr-smb-server` — SOURCE this project owns
+# and tracks (`.rulings/` R-134, and `VENDORING.md` beside it). Every rule below
+# names one subdirectory on purpose. A future `/vendor/` line would silently
+# untrack an adopted crate and its two signing fixes, and the failure would look
+# like a clean checkout that does not build.
+/vendor/firmware/
+/vendor/boot/
+/vendor/kernel/
+# The C mechanisms Buildroot builds (ADR-009 §6) — BusyBox, `wpa_supplicant`
+# and git. `cmd/rivet-image` takes each as a
+# path argument rather than from a fixed directory, so nothing *requires* this
+# one to exist; it is here because `vendor/bin` is the obvious place to put a
+# half-megabyte static binary while working, and `AGENTS.md` §8.3's rule binds
+# history rather than the working tree. A backstop, not the plan.
+/vendor/bin/
+
+# Provisioning files carry credentials. Zero-scrub (AGENTS.md §8.3) says these
+# must never reach history; this is the backstop, not the plan.
+rivet.local.toml
+*.psk
+*.nvram
+*_rsa
+*_ed25519
+*.pem
+*.key
+*.seed
+
+# Host tooling
+.DS_Store
+Thumbs.db
+
+# QEMU loop inputs — somebody else's binaries, large, ADR-026 §6
+tools/qemu/kernel8.img
+tools/qemu/*.dtb
+tools/qemu/*.cpio.gz
+
+# Agent worktrees and local session state — never committed.
+/.claude/
+# Buildroot. `tools/buildroot/build.sh` defaults both the source tree and the
+# output directory to $HOME precisely so these entries never have to fire — a
+# toolchain and a kernel tree are several gigabytes and are `ADR-026` §6's
+# inputs rather than this repository's artefacts. This is the backstop for
+
+# somebody pointing RIVET_BR_OUTPUT or RIVET_BUILDROOT inside the tree,
+# not the plan.
+tools/buildroot/output/
+tools/buildroot/dl/
+tools/buildroot/buildroot-*/
+tools/buildroot/**/Image
+tools/buildroot/**/*.dtb
+
+# HDMI captures of hardware experiments. 75 MB and growing; the console
+# transcripts that matter are quoted into docs/ (ADR-018 §5.3.2, ADR-029 §9.3).
+# Kept beside the repo, never in it.
+/evidence/
+
+# Python bytecode from tools/ (tools/qemu/interactive.py). Nothing on a card
+# runs Python; these are a development instrument.
+__pycache__/
+*.pyc
+
+# **Scratch for the QEMU harness's --state, --libraries and --trust.** Seeded by
+# hand; none of it is source. The libraries are copies out of the Buildroot
+# sysroot and the trust store is extracted from a card image (PLAN.md §104.27.2)
+# -- that one especially must never be committed, since the store that matters
+# is the one cmd/rivet-image writes at build.
+.qemu-state/
+.qemu-libs/
+.qemu-endpoints/
+.qemu-aura/
+trust-store.bin
+
+# The renderer is cross-compiled by deploy/aura/renderer/build.sh, not cargo,
+# and the binary lands beside the manifest to be packaged.
+deploy/aura/renderer/aura-renderer
+
+# Scratch pulled off the board while diagnosing. Never source.
+*.tmp.json
+
+# **Superseded 2026-09-04 — the manifest moved to `deploy/launcher/Cargo.toml`
+# and is TRACKED.** This line is what made it untracked, which `.rulings/` R-138
+# turned from untidy into dangerous: `connects = ["rivet-sysd:kiosk"]` is what
+# tells the supervisor the launcher is the display arbiter rather than a lessee,
+# and losing it costs the screen with nothing in the tree to say why. Kept so a
+# checkout that still has the old scratch directory does not offer it back.
+.launcher-pkg/
+# The stripped cross-built launcher, staged beside its packaging manifest so
+# `cargo rivet package --binary` can reach it — `deploy/aura/renderer` above,
+# same reason. Reproducible from `cargo build -p rivetos-launcher`.
+deploy/launcher/rivet-launcher
+deploy/launcher/target/
+
+# `cmd/rivet-proxyd/out/` — the stripped cross-built binary, staged there so
+# `cargo rivet package --binary` can reach it from Windows. Reproducible.
+cmd/rivet-proxyd/out/
+.oldlauncher/

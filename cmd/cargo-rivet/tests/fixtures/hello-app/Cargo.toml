@@ -1,0 +1,24 @@
+# A fixture crate, packaged by `tests/roundtrip.rs`. It is deliberately NOT a
+# member of Rivet's workspace — `[workspace]` with nothing in it detaches it,
+# so `cargo build` inside Rivet never compiles it and the suite drives it
+# exactly the way somebody else's crate would be driven.
+[workspace]
+
+[package]
+name = "hello-app"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+# ADR-015 §3.2's table, with every field it defines exercised at once so the
+# translation is tested rather than the happy path.
+[package.metadata.rivet]
+kind = "daemon"
+restart = "on-failure"
+ready = "listening"
+network = "group:media"
+state = "private"
+memory = "128M"
+listen = ["tcp:8080", "unix:api"]
+provides = ["socket:api"]
+connects = ["photo-index:api"]

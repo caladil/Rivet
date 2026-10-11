@@ -1,0 +1,42 @@
+# A desired-state document for QEMU's user-mode network, and nothing else.
+#
+# **This is a harness fixture, not a sample configuration.** Every value in it
+# is fixed by QEMU's SLIRP stack rather than chosen: `-netdev user` always gives
+# the guest 10.0.2.15/24 with a gateway at 10.0.2.2, on every host, for every
+# user. Nothing here describes a real network, which is why it can be a tracked
+# file at all (`AGENTS.md` §8.3).
+#
+# ## Why the harness needs one
+#
+# On a card, PID 1 reads the provisioning file off the FAT boot partition and
+# stores it (`ADR-004` §6, `ADR-017` §3.1.9). QEMU's `-M virt` has no boot
+# partition and no `/dev/mmcblk0`, so a machine booted by `run.sh` has **no
+# stored document** — `rivet-netd` exits 2 on every convergence pass, the
+# interface never gets an address, and a forwarded port reaches nothing.
+# That is a faithful reproduction of an unprovisioned board and it puts the
+# whole of Stage 1's exit criterion out of reach in this loop.
+#
+# `run.sh --document tools/qemu/qemu-network.toml` plants this at the path the
+# store writes, so the machine starts with the document a provisioned board
+# would have. **It settles nothing about provisioning**, which is the step it
+# replaces rather than performs.
+#
+# ## `static` rather than `dhcp`, and it is not a preference
+#
+# `ADR-004` §8's DHCP client is not built. `rivet-config`'s network module
+# refuses `method = "dhcp"` at parse time rather than accepting a document it
+# cannot honour (`ADR-007` §3.6.5), so `static` is the only method that reaches
+# `rivet-netd` today. QEMU's SLIRP answers DHCP perfectly well and would be
+# the better test the day there is a client to test.
+#
+# ## `eth0`, which is virtio and not the board's NIC
+#
+# `ADR-026` §4: under `-M virt` this interface is `virtio_net`. The Raspberry
+# Pi 4's is `bcmgenet`, and nothing here says anything about it.
+
+version = 1
+
+[network.eth0]
+method  = "static"
+address = "10.0.2.15/24"
+gateway = "10.0.2.2"

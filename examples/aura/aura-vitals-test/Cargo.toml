@@ -1,0 +1,68 @@
+# **`aura-vitals`** — what the machine can say about itself, as a card.
+#
+# `SPEC-04`, `PLAN.md` §112.2. An ordinary Aura addon and a deliberately dull
+# one: it claims `tertiary` with `connects`, is handed a socket, reads `/proc`
+# and `/sys`, and sends. Nothing in `aura-renderer` knows this program exists.
+#
+# ## It is one of TWO, and the pair is the whole point
+#
+# `examples/aura/aura-vitals-go` is the same producer in Go — same endpoint,
+# same files, same bytes. `ADR-036` §6.2B ruled two of them because *"`provides`
+# is an interface, and two implementations are what prove it"*: the consumer
+# declares `connects` once and either language satisfies it, with no change to
+# the consumer.
+#
+# **Both cannot run at once, and that is the platform's arbitration rather than
+# Aura's.** Two applications claiming one endpoint is refused at launch by name
+# and the second is not started (`SPEC-03` §3.4). Swapping one for the other is
+# the demonstration: the renderer cannot tell which is running.
+#
+# ## Why vitals rather than weather
+#
+# `PLAN.md` §112.2 rules weather out, and the reason is `ADR-011`:
+# `aura-controller` already fetches it and owns every conversion, so a second
+# weather client would be a second authority for one fact. **A machine's own
+# temperature has no other authority** — the machine is the only thing that can
+# say it — so this competes with nothing.
+#
+# Its own workspace, like every other application in `examples/`.
+[workspace]
+
+[package]
+name = "aura-vitals-test"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[package.metadata.rivet]
+kind    = "daemon"
+restart = "always"
+ready   = "none"
+
+# **One grant, and it is the slot the generic composition draws.**
+#
+# `primary` is the clock and `secondary` is the weather panel; both are Aura's
+# own cards with hard-coded compositions (R-125). `tertiary` goes through
+# `SPEC-04` §5.9's generic path, which is what a third party's card actually
+# gets — so a producer whose job is to demonstrate the addon contract belongs
+# there rather than somewhere flattering. `PLAN.md` §113 asked for this.
+connects = ["aura-renderer:tertiary"]
+
+# **Nothing is fetched.** `/proc` and `/sys` are not the network.
+network = "none"
+
+# It holds nothing across a restart. The card it would have sent is one tick
+# away, and a reading kept over a reboot is one nobody vouched for
+# (`ADR-036` §8.5).
+state   = "none"
+library = []
+
+[dependencies]
+rivetos-sdk = { path = "../../../rivet-sdk" }
+aura-card = { path = "../aura-card" }
+
+[profile.release]
+opt-level = 3
+lto = true
+panic = "abort"

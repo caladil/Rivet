@@ -1,0 +1,23 @@
+# Cross-linking aarch64-unknown-linux-musl from an x86-64 host fails with the
+# default linker (`cc`), which is the host's:
+#
+#   /usr/bin/ld: crt1.o: Relocations in generic ELF (EM: 183)
+#   /usr/bin/ld: crt1.o: error adding symbols: file in wrong format
+#
+# `rust-lld` ships with the toolchain, so this needs no cross binutils and no
+# cross GCC to LINK. ADR-026 §3.1.
+#
+# ~~Rivet's own binaries therefore need no C cross-toolchain at all; Buildroot
+# is required only for the C mechanisms (ADR-009 §6).~~ **False since
+# 2026-08-28**, and struck rather than deleted because the sentence was true
+# for months and its passing is the cost of a decision somebody may want to
+# revisit. `rivetos-tls` links `ring` (ADR-009 §3.7), whose build compiles C
+# and assembly, so `cmd/rivet-mcpd` and `cmd/cargo-rivet` need a cross C
+# COMPILER even though nothing needs a cross linker.
+#
+# `tools/card/build.sh` sets `CC_aarch64_unknown_linux_musl` to Buildroot's
+# `aarch64-linux-gcc` and refuses early if it is missing. A bare
+# `cargo build --target aarch64-unknown-linux-musl` from a shell that has not
+# set it will fail inside ring's build script.
+[target.aarch64-unknown-linux-musl]
+linker = "rust-lld"

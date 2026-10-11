@@ -1,0 +1,77 @@
+[package]
+name = "rivetos-adapter-net"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Rivet's netlink adapter: interfaces, addresses and routes. ADR-014 §2."
+
+[dependencies]
+rivetos-core = { path = "../rivet-core" }
+
+# NOTHING ELSE, and that is the outcome of a survey rather than an omission.
+# `ADR-009` §3.2 requires the survey and §3 requires the reason for the step
+# taken to be recorded; the full reading — rtnetlink, neli,
+# netlink-packet-route + netlink-sys, and what each one costs — is in
+# src/lib.rs's module documentation, in the style of `cmd/rivet-initd`'s
+# `libc`-versus-`rustix` passage. The short form:
+#
+#   rtnetlink                    rejected. `new_connection` does not exist
+#                                without `tokio_socket` or `smol_socket`
+#                                (verified by compiling it), and futures-util /
+#                                futures-channel are non-optional even with
+#                                default features off. `ADR-021` §4.1 rejected
+#                                `ntpd-rs` on exactly this ground.
+#   neli                         rejected. 33 crates, `parking_lot`, and `serde`
+#                                in the graph via neli-proc-macros — which
+#                                rivet-config went to some length to keep out
+#                                of this workspace.
+#   netlink-packet-route +       the genuine contender, and the close call. 13
+#   netlink-sys                  crates, no runtime, MIT. Rejected because
+#                                neither builds for the development host, which
+#                                would make this crate's own tests unrunnable
+#                                where they are written. Re-survey when this
+#                                crate parses broadcasts or grows nftables
+#                                (`ADR-023` §9) — that is a far larger wire
+#                                surface than Stage 1's five requests.
+#
+# The consequence for `ADR-010` §4: no new licence needs adding to deny.toml,
+# because no new dependency was taken.
+
+# **Two users: `src/socket.rs` and `src/mdns.rs`.** It is gated on Linux so
+# that this crate's decisions and its wire format compile — and its tests run —
+# on the Windows development host, which is the property the survey above
+# turned on.
+#
+# Walled per `ADR-009` §3.4: no `libc` type appears outside those two files,
+# and none reaches `rivet-core`.
+#
+# `src/mdns.rs` is the mDNS responder's socket — `SO_REUSEADDR` must be set
+# before `bind(2)`, which `std` cannot do — and `uname(2)`, the name a confined
+# responder takes without reading a path. It is here rather than in
+# `cmd/rivet-mdnsd` so that crate gains no dependency: this crate already
+# links `libc`, and `ADR-014` §2 puts mDNS in its territory.
+[target.'cfg(target_os = "linux")'.dependencies]
+libc = "0.2"
+
+[lints.rust]
+# The `unsafe` regions are the two `libc` users above: src/socket.rs's
+# netlink syscalls, and src/mdns.rs's socket and `uname(2)`. Every block carries a SAFETY comment. Nothing above the port
+# trait is unsafe, which is the point of the port trait.
+unsafe_code = "allow"
+
+[lints.clippy]
+# `rivet-netd` is supervised and is allowed to fail (`ADR-017` §3.1), but
+# `panic = "abort"` in the release profile makes a panic an abrupt death with no
+# diagnostic, and this code runs before there is any way to reach the machine.
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+
+[lib]
+# The PACKAGE is `rivetos-adapter-net` and the LIBRARY is `rivet_adapter_net`.
+# ADR-033 §4: crates.io names and source names are different facts, and
+# rivet.gg already owns the `rivet-*` package namespace.
+name = "rivet_adapter_net"
+path = "src/lib.rs"

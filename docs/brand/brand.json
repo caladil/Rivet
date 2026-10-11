@@ -1,0 +1,52 @@
+{
+  "_comment": [
+    "RIVET'S COLOUR IS #b0512f — weathered oxide, HSL hue 15.8 deg. Ruled by the",
+    "maintainer 2026-09-01 after three rounds: #d63a33 and #de3b4b were both",
+    "rejected as too red, and the brief settled on a rusty rivet.",
+    "",
+    "It sits 11.8 deg from Ignition's #ef7c1a, which is CLOSER than any accent",
+    "this family has ever rejected (the three killed in one pass sat at 7, 8 and",
+    "10 deg) and far closer than the 32 deg the accepted jade held. That was put",
+    "to the maintainer with the numbers in front of him and he ruled it: he did",
+    "not mind crowding Ignition, since the two projects will live side by side",
+    "(.rulings/ R-294). Recorded here so nobody re-litigates it as an oversight",
+    "— it is a decision, not a missed check.",
+    "The two projects are separated by saturation and lightness rather than hue;",
+    "Ignition is a vivid flame orange, Rivet a muted corroded red-brown.",
+    "",
+    "#b0512f is LIGHT-BIASED — 5.17 white, 4.77 paper, but only 3.65 on dark",
+    "chrome and 3.52 on the icon tile. That is the family's weakest dark reading,",
+    "below the 3.84 that retired Trends' #12805e. So `accent` carries a small lift",
+    "to #c06139 (4.51 dark chrome, 4.34 on tile) for the dark lockup, the dark",
+    "descriptor and the dark tile, and `accent_on_light` holds the ruled #b0512f",
+    "for every light lockup. This is the Olympus mechanism, inverted: there the",
+    "accent vanished on white, here it dims on black.",
+    "",
+    "Tiles are dark warm oxide rather than Ignition's neutral slate, and they are",
+    "DARK on purpose: a warm charcoal #332e2c read 2.59:1 against the mark and",
+    "failed 3:1 outright. Every number above is from check_color.py; see",
+    "BRAND.html section 3 for the full table."
+  ],
+
+  "project": "Rivet",
+  "wordmark": "RIVET",
+  "descriptor": "APPLIANCE OS",
+
+  "mark": "rivet-mark-rust.svg",
+  "mark_small": "rivet-mark-small.svg",
+  "mark_fill_rule": "evenodd",
+
+  "colors": {
+    "accent":          "#c06139",
+    "accent_bright":   "#d07a4e",
+    "accent_on_light": "#b0512f",
+    "accent_deep":     "#8f3f22",
+
+    "ink":   "#2b3340",
+    "paper": "#f4f6f8",
+
+    "tile_light_chrome": ["#33201a", "#20120d", "#4f342a"],
+    "tile_dark_chrome":  ["#442d24", "#2e1d16", "#63443a"],
+    "tile_small":        "#20120d"
+  }
+}

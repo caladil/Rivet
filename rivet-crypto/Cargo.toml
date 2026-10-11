@@ -1,0 +1,171 @@
+[package]
+name = "rivetos-crypto"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "BLAKE3 and Ed25519 behind rivet-core's package ports. ADR-029 §7."
+
+# Why this is a crate rather than a module in a composition root.
+#
+# `ADR-014` §5: "a crate is created by the first thing that needs it." Two things
+# need it, and they are two *binaries*:
+#
+#   cmd/rivet        verifies and installs a payload on the board (ADR-029 §9.2)
+#   cmd/rivet-image  emits and SIGNS one (ADR-029 §10, and ADR-015 §3.2's
+#                      `cargo rivet package`)
+#
+# Putting the implementors in either one is exactly the mistake `ADR-014` §2.2
+# records against `cmd/rivet-initd`: a binary crate has no lib target, so the
+# other caller could not name them at all, and the verifier — the most
+# security-sensitive code in the project (`ADR-028` §2) — would exist twice.
+#
+# It is not an *adapter* in `ADR-014` §2's sense and is deliberately not named
+# one. An adapter hides a platform; this hides a dependency. It sits beside
+# `rivet-config` in the layout: a supporting crate that performs no I/O, names
+# no syscall, and whose types never reach `rivet-core`'s surface (`ADR-009` §4
+# — reuse implementations, never interfaces). Everything crossing the boundary is
+# a `rivet_core::package` type.
+
+[dependencies]
+# The ports. This crate implements `Digest`, `Verify` and `Sign` and adds nothing
+# to the vocabulary; `ADR-014` §3's table permits the direction and forbids the
+# reverse.
+rivetos-core = { path = "../rivet-core" }
+
+# `ADR-029` §7.2, ruled 2026-08-23: BLAKE3, pure Rust.
+#
+# `features = ["pure"]` and NOT merely `default-features = false` — the
+# distinction cost a correction on 2026-08-23 and `cmd/rivet`'s Cargo.toml
+# quotes the line of blake3 1.8.7's own build.rs that decides it (line 367):
+#
+#     || (!is_no_neon() && !is_pure() && is_aarch64() && is_little_endian())
+#
+# Without `pure`, a build for `aarch64-unknown-linux-musl` compiles
+# `c/blake3_neon.c` and needs the C cross-toolchain `ADR-001` §4.4 rules out.
+#
+# `std` is kept here, unlike in `cmd/rivet`: this crate returns `Vec`-free
+# fixed arrays but its consumers are host tools as well as the board, and every
+# Rivet binary links `std` anyway.
+blake3 = { version = "1", default-features = false, features = ["pure", "std"] }
+
+# `ADR-029` §7.1, ruled 2026-08-23: Ed25519, raw. No X.509, no ASN.1, no DER.
+#
+# THE SURVEY (`ADR-009` §3.2 requires one; §3 requires the reason for the step
+# taken to be recorded). Candidates, against `ADR-009` §5's gates:
+#
+#   ed25519-dalek 2      TAKEN. Pure Rust; no build script compiles C. Builds for
+#                        aarch64-unknown-linux-musl and for the Windows
+#                        development host (`ADR-009` §3.6.1's gate). Licence
+#                        BSD-3-Clause, already on deny.toml's allowlist.
+#                        **What decided it over the smaller candidate: it exposes
+#                        `verify_strict`.** Ed25519 has a documented interop
+#                        hazard — small-order public keys, non-canonical scalar
+#                        and point encodings — and RFC 8032 leaves the handling
+#                        under-specified, which is why ZIP-215 exists. A verifier
+#                        that is the security boundary (`ADR-028` §2) should not
+#                        be the place a project discovers that two libraries
+#                        disagree about which signatures are valid.
+#   ed25519-compact      Rejected, and it was close. Zero dependencies, MIT, and
+#                        far smaller — genuinely attractive for a static-musl
+#                        image (`ADR-003` §4). Rejected on review surface: this
+#                        is the one dependency in the project whose failure mode
+#                        is "an attacker's payload verifies", and the
+#                        better-reviewed implementation is worth the extra
+#                        crates. `ADR-009` §3.3 says it in the general form —
+#                        cryptography is the case where "a bespoke version is not
+#                        merely slower to write but *worse*", and a less-read
+#                        crate is one step along the same axis.
+#   ring                 Rejected outright: assembly and C. `ADR-001` §4.4.
+#   dalek's `rand_core`  Not taken. Ed25519 needs no randomness at signing or at
+#                        verification (`ADR-029` §7.1, and that is one of the
+#                        reasons it was chosen over ECDSA), so this crate's
+#                        signer is built from a 32-byte seed the caller supplies
+#                        and this crate needs no randomness.
+#
+#                        ~~and there is no RNG in the dependency graph at
+#                        all.~~ CORRECTED 2026-08-28, ADR-001 7: that was
+#                        never true -- Cargo.lock already carried three
+#                        `getrandom` entries -- and it was enforced as a rule
+#                        for months out of this comment. What IS true is
+#                        stated above and is a property of Ed25519, plus the
+#                        observation that no CARD binary links a randomness
+#                        crate. cargo-rivet takes `getrandom` for `key new`
+#                        and ships on no card.
+#
+# `default-features = false` drops `std` and `zeroize` from dalek's own list;
+# `alloc` is not needed. What is left is the field arithmetic and the two
+# operations this crate calls.
+#
+# WHAT THIS DRAGS IN, AND ONE CONSEQUENCE WORTH KNOWING BEFORE IT SURPRISES
+# SOMEBODY. Ed25519 is defined over SHA-512, so `ed25519-dalek` depends on
+# `sha2` — read out of the resolved graph for `aarch64-unknown-linux-musl`
+# rather than assumed: subtle, signature, ed25519, curve25519-dalek, sha2,
+# digest, block-buffer, crypto-common, generic-array, typenum, cpufeatures.
+#
+# **`cmd/rivet`'s Cargo.toml plans to delete `sha2` once `ADR-029` §7.2's
+# measurement is taken**, on the grounds that "nothing else in Rivet uses
+# SHA-256 and nothing is planned to". That sentence is now half wrong and the
+# other half still stands: nothing uses SHA-*256*, and SHA-512 is a permanent
+# part of the image the moment anything verifies a payload. Deleting the
+# dependency from `cmd/rivet` still removes a *measurement* rather than a
+# mechanism, and the ratio it exists to produce is unaffected — but "the image
+# carries no SHA-2 implementation" will not be true after this crate ships.
+#
+# Verified for `aarch64-unknown-linux-musl`: the whole closure compiles with no
+# object files emitted at all, so no C reaches the target and `ADR-026` §3.1
+# still holds. `cargo deny check licenses` reports `licenses ok` against this
+# graph with **no addition to deny.toml** — BSD-3-Clause was already allowed.
+ed25519-dalek = { version = "2", default-features = false }
+
+# **Tests only.** `ADR-029` §4 puts the list of names a payload may not carry on
+# `BootSlots`, and `rivet_core::package::update::Payload::open` takes it as a
+# parameter — `rivet-core` may not name an adapter (`ADR-014` §3). So the two
+# halves of that refusal live in crates that cannot see each other, and
+# `tests/port_agreement.rs` is where they are driven together.
+#
+# A dev-dependency rather than a dependency, and the precedent is exact:
+# `cmd/rivet-image` takes `rivet-adapter-image` the same way, for the same
+# reason — "`ADR-014` §3's 'cmd/* may depend on everything' is a permission
+# rather than an invitation". Nothing the shipped library does needs it, and the
+# alternative was a *third* spelling of `autoboot.txt` in a test fixture, which
+# is the drift `ADR-011` is about.
+# WPA2's key derivation — `ADR-004` §5, built 2026-08-30.
+#
+# PBKDF2-HMAC-SHA1, 4096 iterations, the SSID as salt: 802.11i's own
+# definition, and none of the three is a choice. `src/pmk.rs` carries the
+# survey `ADR-009` §3.2 requires and the reason SHA-1 is not a weakness here.
+#
+# **Four crates, measured rather than assumed**: `pbkdf2`, `sha1`, `cmov` and
+# `ctutils`. `hmac`, `digest`, `crypto-common`, `typenum`, `block-buffer` and
+# `cpufeatures` are already in this workspace's graph through `ed25519-dalek`.
+# All pure Rust; nothing compiles C, so `ADR-026` §3.1 still holds.
+pbkdf2 = { version = "0.13", default-features = false, features = ["hmac"] }
+hmac = { version = "0.13", default-features = false }
+sha1 = { version = "0.11", default-features = false }
+
+[dev-dependencies]
+rivetos-adapter-image = { path = "../rivet-adapter-image" }
+
+[lints.rust]
+# Nothing here talks to the kernel: this crate hashes buffers and checks
+# signatures. Like `rivet-store` and `rivet-adapter-image`, and unlike
+# `cmd/rivet-initd`, it holds no `unsafe` at all and forbids it outright.
+unsafe_code = "forbid"
+
+[lints.clippy]
+# Stricter than the workspace's `warn`, on `rivet-adapter-image`'s reasoning:
+# this code runs inside PID 1's process tree on a board where `panic = "abort"`
+# makes a panic a kernel panic with no console — and it runs over bytes an
+# attacker chose. A verifier that can abort is a denial of service.
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+
+[lib]
+# The PACKAGE is `rivetos-crypto` and the LIBRARY is `rivet_crypto`.
+# ADR-033 §4: crates.io names and source names are different facts, and
+# rivet.gg already owns the `rivet-*` package namespace.
+name = "rivet_crypto"
+path = "src/lib.rs"

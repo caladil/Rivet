@@ -1,0 +1,73 @@
+# **A service that is DELIBERATELY SLOW TO STOP**, so that a shutdown can be
+# watched doing the thing `rivet_core::shutdown` was written to make possible.
+#
+# `.rulings/` R-141, register `R-34`, `PLAN-Remediation-2026-09-03.md` §6.
+#
+# ## The question this exists to answer
+#
+# `rivet-sysd` gives a service `SERVICE_STOP_GRACE_MS` (10 s) and then
+# `SERVICE_KILL_GRACE_MS` (2 s); `rivet-initd` gives the whole supervisor
+# `SUPERVISOR_STOP_GRACE_MS`. Those were chosen independently in two crates and
+# the outer one was SHORTER, so PID 1 killed the supervisor part-way through any
+# shutdown that took more than five seconds. The numbers are derived from one
+# another now and a tree that mis-orders them does not build.
+#
+# **None of that is evidence that a slow service is actually waited for.** Three
+# reboots were watched on 2026-09-04 and none showed a `SIGKILL` — but no
+# service on that machine took more than a moment to stop, so the reading is
+# consistent-with rather than proof (`PLAN.md` §129.4). A compile-time assertion
+# proves an ordering between two constants; it does not prove that the code
+# reads them, that `SIGTERM` reaches an application at all, or that PID 1 waits.
+#
+# This program makes the case exist. It catches `SIGTERM`, takes eight seconds
+# to go — inside the service budget and outside the OLD supervisor budget of
+# five — and writes down, second by second, that it is still alive.
+#
+# ## Two independent records, on purpose
+#
+# `AGENTS.md` §7. It writes every line to **stdout**, which the supervisor
+# ingests as `svc` journal records, and to **`$RIVET_APP_DATA/shutdown-log.txt`**,
+# `fsync`ed per line. The two can disagree, and if they do that is itself the
+# finding: stdout goes through a pipe the supervisor has to still be draining,
+# and the file does not.
+#
+# ## Outside the workspace, like every example
+#
+# The empty `[workspace]` table means `cargo build` at the repository root never
+# reaches this. See `examples/probes/hello-rivet/Cargo.toml` for why that
+# matters to the crate count `tools/docs/claims.py` derives.
+[workspace]
+
+[package]
+name = "slow-stop-probe"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[package.metadata.rivet]
+# A long-running process the supervisor keeps up — and, at shutdown, stops.
+kind = "daemon"
+# **`on-failure`, not `always`.** This program exits 0 when it has finished
+# draining. Under `always` the supervisor would be entitled to start it again,
+# and a probe that respawns during the shutdown it is measuring would be
+# measuring something else.
+restart = "on-failure"
+ready = "none"
+# It answers nothing and calls nothing out.
+network = "none"
+# `/state/app/slow-stop-probe/data`, mode 0700, owned by this application's own
+# uid (`ADR-015` §3.2A). This is the half of the record that does not depend on
+# the supervisor still reading a pipe.
+state = "private"
+# Static: `std` and `libc`, which is a binding to the C library already linked.
+library = []
+
+[dependencies]
+# For `sigaction`. `std` has no way to install a signal handler, and the whole
+# point of this program is to catch one.
+libc = "0.2"
+
+[profile.release]
+panic = "abort"
+strip = "symbols"

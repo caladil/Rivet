@@ -1,0 +1,32 @@
+# **The link recipe, and every flag in it was found by a linker error.**
+# `examples/probes/mesa-demo/.cargo/config.toml` is where they were found and
+# carries the long-form argument for each; `examples/probes/gpu-flip` is the
+# second copy and this is the third — the first one that ships on a card.
+#
+# It lives here, and this crate is therefore its own workspace root, because
+# cargo reads `.cargo/config.toml` from the invocation directory upward: a copy
+# inside a workspace MEMBER is silently ignored, and the same flags in the
+# ROOT's would make every Rivet binary dynamic. `Cargo.toml` at the repository
+# root states that at length under `exclude`.
+#
+# **The paths are the build container's.** `ADR-026` §7 makes the container the
+# Linux side of this project and `tools/container/exec.sh` mounts the Buildroot
+# tree at `/br`. This crate cannot be built anywhere else.
+[target.aarch64-unknown-linux-musl]
+linker = "/br/host/bin/aarch64-linux-gcc"
+rustflags = [
+    # **`ADR-003` §5's exception, and it is forced rather than chosen.** There
+    # is no static `libgbm`: Buildroot stages `libgbm.so` alone, because Mesa
+    # builds no archive for it. `cmd/rivet-launcher` faced the same rule and
+    # kept its exception — it links `libdrm.a`, which Buildroot does stage — so
+    # the difference here is Mesa's packaging and not a preference.
+    "-C", "target-feature=-crt-static",
+    # Let GCC drive the link: rust-lld cannot find `libgcc_s` or `libgcc`,
+    # which live under `lib/gcc/<tuple>/<version>/` — a path the cross GCC
+    # computes and nothing else knows.
+    "-C", "link-self-contained=no",
+    # Where Buildroot stages the link-time libraries. The RUNTIME copies are
+    # put on the card by `tools/card/build.sh`'s `collect_libraries`, and GBM's
+    # dlopen'd backend by `collect_gbm_backends` beside it.
+    "-L", "/br/staging/usr/lib",
+]

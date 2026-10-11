@@ -1,0 +1,19 @@
+# The exact compiler this workspace builds with, on the host as well as in
+# the build container — see tools/container/Dockerfile's own `RUST_VERSION`,
+# which this mirrors. Without this file, a host build floated with whatever
+# rustup already had installed, so two workstations could compile different
+# bytes from the same commit.
+#
+# rustup honours this file on its own: the first `cargo` or `rustc` run
+# anywhere under this directory fetches 1.99.0, and anything listed below,
+# if it is not already installed.
+#
+# `aarch64-unknown-linux-musl` is listed because the HOST cross-builds for a
+# board too: `cargo rivet package` and `cargo rivet install --manifest-path`
+# compile an application for that target with the linker `.cargo/config.toml`
+# names, and `cmd/cargo-rivet`'s round-trip tests do the same. A toolchain
+# pinned without it cannot build any of them.
+[toolchain]
+channel = "1.99.0"
+components = ["clippy", "rustfmt"]
+targets = ["aarch64-unknown-linux-musl"]

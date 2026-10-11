@@ -1,0 +1,287 @@
+[package]
+name = "rivetos-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Rivet's CLI, and the binary /etc/shells names as the login shell. ADR-006."
+
+# Two workspace crates, and every outside dependency that was considered is
+# recorded below per ADR-009 §3 so that its absence is a decision rather than an
+# oversight. ~~There is still no third-party dependency here.~~
+#
+# **That sentence outlived itself twice** and is struck rather than edited
+# (AGENTS.md §2, §7): `libc` arrived with `apply trial-boot`, and `blake3` and
+# `sha2` arrived 2026-08-23 with `measure hash`. Each is argued at its own entry.
+[dependencies]
+# ADR-006 §3: the core owns every administrative operation as a typed thing and
+# this binary is an adapter over it containing no logic. Added 2026-08-23 with
+# the first operation; before that there was nothing in the core for this crate
+# to adapt (ADR-006 §8.1), which is why the list above it used to be empty.
+#
+# cmd/* may depend on everything (ADR-014 §3) — it is the composition root. What
+# matters is the direction: nothing here is visible to rivet-core.
+rivetos-core = { path = "../../rivet-core" }
+rivetos-render = { path = "../../rivet-render" }
+
+# ADR-006 §7's `rivet schema`, generated from rivet-config's types. This
+# crate renders it and owns none of it.
+#
+# Note what this does NOT bring with it: no document is read from disk. The
+# schema is a function of the types, so `rivet schema` performs no I/O and the
+# "two things it does not do that a shell does" paragraph in src/main.rs still
+# holds. Reading /state/config/machine.toml — which `rivet get` will need —
+# is a different change and would bring rivet-store, and with it the revisit
+# condition recorded against Ignition below.
+rivetos-config = { path = "../../rivet-config" }
+
+# `ADR-018` §5's A/B boot primitive, behind the boot-slot port (x86 has no `tryboot`; ruled 2026-08-23).
+# Added 2026-08-23 with `rivet apply trial-boot`, and it is what forced the two
+# entries below.
+#
+# `ADR-028` §4 rules that **authority** to change a machine comes from an
+# authenticated principal acting through the administration surface, "at the
+# console or from a workstation", and `ADR-006` §5 makes this binary that surface — the
+# network API is deferred and nothing connects the CLI to the supervisor. So the
+# principal is an operator running `rivet` on the machine, and this is the crate that
+# has to reach the card.
+rivetos-adapter-image = { path = "../../rivet-adapter-image" }
+
+# `ADR-005` §4.1.3's `df`, behind `rivet_core::operation::Machine::
+# read_filesystems`. Added 2026-08-24 with `rivet get storage`, and it is the
+# first use of `ADR-014` §2's observed-state adapter — §5's "a crate is created
+# by the stage that needs it" arriving.
+#
+# It brings nothing with it: that crate's only dependency is `rivet-core`, and
+# it makes no syscall. What it needs from a caller is `port::SystemMedium`, which
+# `src/storage.rs` supplies over the `libc` wall this crate already owns — the
+# same arrangement `rivet-adapter-image` and `src/boot.rs` already have, for
+# the reason that crate's manifest records.
+rivetos-adapter-system = { path = "../../rivet-adapter-system" }
+
+# `RTM_GETADDR`, and nothing else out of this crate. Added 2026-08-31 to fix a
+# confidently-wrong answer rather than to add a feature: `rivet get network` on
+# a board reported `"addresses":[]` for `eth0` — the interface the question
+# arrived over — because IPv4 addresses are in neither /proc nor /sys and the
+# only route to one is netlink. `src/network.rs`'s module documentation carries
+# the whole argument, including the sentence in it that this entry overturns.
+#
+# **What it costs, in the terms the rest of this file uses.** Its only
+# dependencies are `rivetos-core` and, on Linux, the `libc` this binary already
+# links — so nothing new enters the graph. It opens an `AF_NETLINK` socket only
+# when `rivet get network` runs, never at startup, and reading the address list
+# needs no privilege (only changing it does). Every `unsafe` block is inside
+# that crate's `socket` module behind its port trait, and none of it is new to
+# the image: `rivet-netd` already ships the same code.
+#
+# It builds and tests on the Windows development host, which is a property that
+# crate went to some length to keep: only its `socket` module is
+# `#[cfg(target_os = "linux")]`, so `src/network.rs` supplies a reader that
+# **refuses** off Linux rather than one that answers an empty list.
+rivetos-adapter-net = { path = "../../rivet-adapter-net" }
+
+# `mount(2)`, `umount2(2)` and `sync(2)`. Nothing else.
+#
+# `rivet-adapter-image` ships **no** `BootMedium` implementor, deliberately,
+# and its `port` module records exactly when that decision expires: "`ADR-028` §4
+# says an authenticated principal supplies the authority to install an update and
+# does not say which process executes it. If that turns out to be anything other
+# than PID 1, this is where the question of a second implementor is answered."
+# It is not PID 1 — PID 1 has no operator and no session — so the implementor
+# is at this caller's own seam.
+#
+# Walled per `ADR-009` §3.4: **no `libc` type appears outside `src/syscall.rs`**,
+# which is `#[cfg(target_os = "linux")]` and holds every `unsafe` block in this
+# crate. What leaves it is `&str`, `()` and a bare `i32` errno. On a platform that
+# is not Linux, `src/boot.rs` supplies a machine that **refuses**, never one that
+# succeeds (`AGENTS.md` §3), so the crate still builds and tests on the Windows
+# development host (`AGENTS.md` §10.5).
+#
+# `libc` is declarations only; its build script compiles no C, and on
+# `aarch64-unknown-linux-musl` it resolves against the musl `std` already links —
+# so `ADR-026` §3.1 still holds and no C cross-toolchain is needed. The same
+# survey `cmd/rivet-initd` recorded (`rustix` rejected) applies and is not
+# repeated.
+libc = "0.2"
+
+# `ADR-029` §7.2's payload digest, and the reason `measure hash` is the first
+# step of that work rather than a throwaway benchmark:
+#
+#   > **BLAKE3, pure-Rust — ruled 2026-08-23, pending one measurement.** … BLAKE3
+#   > is designed to be fast in software, which is the only kind of fast
+#   > available.
+#
+# `default-features = false` drops `std`, which this crate does not need — it
+# reads the device itself and formats its own hex.
+#
+# **`pure` is the feature that actually honours §7.2's "pure-Rust mode
+# specifically", and `default-features = false` alone does NOT.** Read out of
+# blake3 1.8.7's own `build.rs` rather than assumed — line 367:
+#
+#     || (!is_no_neon() && !is_pure() && is_aarch64() && is_little_endian())
+#
+# aarch64 little-endian is exactly the target Rivet ships for (ADR-003 §4), so
+# WITHOUT `pure` this dependency compiles `c/blake3_neon.c` for the board and
+# every Rivet build needs the C cross-toolchain `ADR-001` §4.4 rules out.
+# `default-features = false` does not reach that branch; only `pure` does.
+#
+# Verified rather than reasoned: with `pure`, the build script's own output for
+# `aarch64-unknown-linux-musl` contains no `rustc-cfg` line at all and its `out`
+# directory is empty — no C, no assembly, no object files. On an x86-64 *host*
+# `cc` still runs a small support probe (`flag_check.c`) and blake3 selects
+# `blake3_{sse2,sse41,avx2}_rust`, which are `std::arch` intrinsics in Rust and
+# not the `_ffi` C paths.
+#
+# **Two consequences for the numbers, and both belong beside the dependency:**
+#
+#   1. The aarch64 figure is the **portable-Rust floor, not the ceiling.** If the
+#      floor is fast enough, ADR-029 §7.2 closes. If it is not, buying NEON costs
+#      the C cross-toolchain, and that is a ruling rather than a flag.
+#   2. **A dev-host figure is not a preview of it.** The host gets SSE2/SSE4.1/
+#      AVX2; the board gets none of them. The two are different implementations
+#      and comparing them would be the mistake `AGENTS.md` §6 is about.
+blake3 = { version = "1", default-features = false, features = ["pure"] }
+
+# **Here only for the comparison, and it should leave with it.**
+#
+# `ADR-020` §6.2 read `/proc/cpuinfo` on a Pi 4 Model B Rev 1.1 and found no
+# `sha2` feature bit on the A72 (`CPU part 0xd08`), so SHA-256 on this board is
+# software SHA-256. `ADR-029` §7.2 wants both numbers because BLAKE3's is
+# meaningless alone — "SHA-256 is the algorithm whose speed assumes hardware this
+# board does not have" is a claim, and the ratio is what turns it into a reading.
+#
+# **It also fingerprints a fleet root** — `rivet get fleet-root` answers the
+# SHA-256 of the root's certificate (`ADR-063` §4.2), because SHA-256 is the
+# fingerprint a trust store shows and a person compares by eye. So it stays
+# when `measure`'s `SHA256` constant goes.
+#
+# `default-features = false` drops `std` and the `oid`/`asm` features. The `asm`
+# feature would be exactly the wrong thing here anyway: it would measure hand-
+# written assembly on the dev host against portable Rust on the board.
+sha2 = { version = "0.10", default-features = false }
+
+# Deliberately NOT here:
+#
+#   ignition   AGENTS.md §8.4 requires it, and cmd/rivet-netd's Cargo.toml
+#              names *this* crate as the consumer it was chosen for: "revisit
+#              when ADR-006's `rivet` CLI arrives". Revisited 2026-08-23, and
+#              the answer is not yet, for reasons that are about this binary in
+#              particular rather than about Ignition:
+#
+#              1. This binary is the LOGIN SHELL. Everything
+#                 linked into it is linked into the first thing exec'd as a
+#                 login shell on every session, and image size is a tracked
+#                 number (ADR-002 §5.1).
+#              2. ADR-013 §7 item 3 attaches two conditions to Ignition in a
+#                 boot binary — every path passed explicitly, and
+#                 `ignition::update` unreachable — and the second cannot be
+#                 compiled out because Ignition declares no features. A
+#                 self-updater reachable from the login shell of a device whose
+#                 update model is A/B images (ADR-018 §5) is a second updater.
+#              3. What Ignition supplies is configuration, logging, self-update
+#                 and a standard CLI surface. This build implements no
+#                 administrative operation (src/main.rs, "Which fraction"), so
+#                 it loads no configuration and has nothing to log.
+#
+#              The revisit condition is therefore sharper than "when the CLI
+#              arrives": it is **when the CLI grows its first operation that
+#              reads configuration**, which is when Ignition would be carrying
+#              something rather than being carried. `cmd/rivet-initd` and
+#              `cmd/rivet-sysd` both took the same step for the same
+#              class of reason.
+#
+#   clap       The same argument one level down, and a second one: ADR-014 §3's
+#              forbidden-edge table names `clap` explicitly as a thing that must
+#              not reach `rivet-core`. It is permitted here — cmd/* may depend
+#              on everything — but the surface this build parses is two flags
+#              and one word, and `ADR-009` §2's reuse posture is about reusing
+#              implementations, not about reaching for one that is not needed.
+#
+#   serde_json The structured form (ADR-006 §4) is serialised by hand in
+#              src/value.rs, over a CLOSED value enum with no derive and no
+#              generic data model — the same decision cmd/rivet-sysd
+#              recorded for its journal, for the same reason, and
+#              rivet-config's Cargo.toml records why serde is kept out of this
+#              workspace at all. The escaping rules are tested against the
+#              cases that actually bite.
+
+[dev-dependencies]
+# **Tests only, and the distinction is the whole reason it is here.**
+#
+# `ADR-028` §5.5.6's `get trust` reports each trusted key's ID, which is BLAKE3
+# of the public key (`ADR-029` §3) and is deliberately NOT stored in the file —
+# `rivet_core::package::trust_store` records why: "storing it would create a
+# second place for it to be written down and a way for the two to disagree."
+# So `src/trust.rs` derives it, with the `blake3` above that this binary already
+# links for `measure hash`.
+#
+# A board derives the same value through `rivet-core`'s `Digest` port, with
+# `rivet-crypto`'s implementation. Those are two call sites for one fact, and if
+# they diverged `get trust` would report ids matching no artifact's header —
+# an operator would conclude their key was not trusted. `src/trust.rs`'s
+# `the_id_this_computes_is_the_one_the_verifier_derives` drives the two
+# together.
+#
+# **Why a dev-dependency and not a dependency.** Taking `rivetos-crypto`
+# normally would put `ed25519-dalek` and its SHA-512 into the LOGIN SHELL for a
+# read-only subject that verifies nothing. Everything linked into this binary is
+# linked into the first thing a session execs, image size is a tracked number
+# (`ADR-002` §5.1), and this file argues every entry rather than assuming one.
+# A dev-dependency reaches no image at all.
+#
+# The precedent is exact and is quoted here because it is the same shape:
+# `rivet-crypto`'s own manifest takes `rivet-adapter-image` this way, because
+# "the two halves of that refusal live in crates that cannot see each other, and
+# `tests/port_agreement.rs` is where they are driven together."
+rivetos-crypto = { path = "../../rivet-crypto" }
+
+[lints.rust]
+# ~~Nothing here talks to the kernel. This binary parses argv, renders values,
+# and exits; there is no syscall for `unsafe` to be needed for.~~
+# unsafe_code = "forbid"
+#
+# **Changed 2026-08-23, and it is the most consequential line in this file**, so
+# it is struck rather than quietly replaced (`AGENTS.md` §2, §7). The sentence
+# above was true until this binary grew `rivet apply trial-boot`, which mounts
+# a FAT filesystem — and `mount(2)` has no `std` equivalent on any target.
+#
+# What that costs, said plainly: this is the **login shell**,
+# so three `unsafe` blocks are now linked into the first thing exec'd as a login
+# shell on every session. The mitigations are the ones `cmd/rivet-initd` and
+# `cmd/rivet-sysd` already use, and they are structural rather than
+# intentions:
+#
+#   * every `unsafe` block is in `src/syscall.rs`, which is
+#     `#[cfg(target_os = "linux")]` and contains nothing else;
+#   * each carries a SAFETY comment naming what the syscall reads and retains;
+#   * ~~there are exactly three, over `mount(2)`, `umount2(2)` and `sync(2)`~~
+#     **four since 2026-08-23** — `clock_gettime(2)` joined them with
+#     `measure hash`, because `ADR-021` §5 names `CLOCK_MONOTONIC` and a
+#     benchmark whose clock is an assumption produces numbers of the same
+#     status. It reads a counter, writes one `timespec`, and changes nothing;
+#     every other operation the boot port needs uses `std`;
+#   * no path through this binary reaches one without an operator having typed
+#     `apply` **and** confirmed it — except `clock_gettime(2)`, which
+#     `measure hash` reaches and which cannot change a machine.
+#
+# **Whether the CLI is the right home for a mount seam at all is the
+# maintainer's call** — the alternative is that PID 1 performs the arming on the
+# CLI's behalf, which needs a way for a process to ask PID 1 for something and
+# `ADR-017` gives it none. Recorded in the report that introduced this line
+# rather than decided here (`AGENTS.md` §1).
+unsafe_code = "allow"
+
+[lints.clippy]
+# Stricter than the workspace's `warn`, on cmd/rivet-netd's reasoning: this is
+# a binary that ships in the image, `panic = "abort"` is set for the release
+# profile, and a panicking login shell is a session that dies with no message.
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+
+[[bin]]
+# The PACKAGE is `rivetos-cli` and the BINARY is `rivet`, which is what
+# /system/bin holds and what an operator types. ADR-033 §4.
+name = "rivet"
+path = "src/main.rs"

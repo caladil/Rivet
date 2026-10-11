@@ -1,0 +1,233 @@
+[package]
+name = "cargo-rivet"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "cargo rivet — emits signed Rivet artifacts: `package` builds a Rust crate into an application .rvt (ADR-015 §3.2), `update` builds a system image into an update .rvt (ADR-029 §15). The only crate here that holds a signing key."
+
+# `cargo rivet <verb>` works because cargo runs any `cargo-<name>` on the
+# PATH, handing it its own name as argv[1]. That is the whole integration; there
+# is nothing to register.
+[[bin]]
+name = "cargo-rivet"
+path = "src/main.rs"
+
+# A HOST tool. It never runs on a Rivet and never will — it holds a *signing*
+# key, and `ADR-015` §4's first bullet is that the private key never leaves the
+# build machine.
+[dependencies]
+# 32 bytes from the operating system, for `cargo rivet key new`. ADR-001 7.
+#
+# **This is not an RNG and the distinction is the ruling.** getrandom is a shim
+# over getrandom(2) on Linux and BCryptGenRandom on Windows: it generates
+# nothing and asks the kernel, which is what ADR-001 7.3 requires. `rand` and
+# `rand_chacha` ARE generators and are still not admitted anywhere.
+#
+# **Host-side only.** cargo-rivet is a development tool and ships on no card;
+# ADR-001 7.1 records that no card binary links a randomness crate and this
+# does not change that. Check it rather than trusting this comment:
+#   cargo tree --target aarch64-unknown-linux-musl -p rivetos-sysd | grep getrandom
+getrandom = "0.3"
+
+# **The only place in the workspace that may mint a certificate.** ADR-025 §3
+# puts generation in the fleet tool, and rcgen drags in `time` and seven other
+# crates -- fine on a HOST, absurd on a card whose TLS ignores expiry anyway.
+rcgen = { version = "0.14", default-features = false, features = ["ring"] }
+
+# The shared trust model: the file names, the hex, and the reader that
+# cmd/rivet-mcpd uses. ADR-011 -- one spelling of device.seed in the workspace.
+rivetos-tls = { path = "../../rivet-tls" }
+
+# The container: the writer, the reader, the `application` kind's rules, and the
+# manifest's canonical text. `ADR-029` §10 and `ADR-011` — the writer lives
+# beside the verifier so the two cannot disagree about what is signed, and this
+# crate re-implements neither.
+rivetos-core = { path = "../../rivet-core" }
+
+# BLAKE3 and Ed25519 behind those ports. `ADR-029` §13.1 created this crate for
+# exactly two callers and named them: the thing that verifies on a board, and
+# the thing that signs on a host. This is the second one arriving.
+rivetos-crypto = { path = "../../rivet-crypto" }
+
+# The boot port — for `cargo rivet update` alone. `ADR-014` §3 permits
+# `cmd/*` → adapter and this is a composition root, so the edge is the allowed
+# direction.
+#
+# **Two facts a payload builder must not invent**, and both are the port's:
+# `ADR-027` §3's `<platform>` token, which `ADR-029` §9.2 step 2 compares a
+# signed header against on the machine; and `ADR-029` §4's reserved names, which
+# on the Pi are a pair of filenames and on a UEFI machine are an EFI variable
+# that is not a file at all. A tool that spelled either here would be a second
+# authority for a fact a board reads from this crate (`ADR-011`).
+rivetos-adapter-image = { path = "../../rivet-adapter-image" }
+
+# Reaching a running board — push, check, install, edit — and `ADR-027` §7's
+# artifact naming. Both were modules in THIS crate until 2026-08-26; `ADR-034`
+# §11.5 moved them out so that `rivet-fleet` performs the same sequence rather
+# than a second one that agrees by inspection.
+rivetos-remote = { path = "../../rivet-remote" }
+
+# The refuse-or-replace, named-and-sized backup copy engine — `rivet-
+# provision ca backup`/`restore`'s own `copy_all`, hoisted to `rivet-
+# filecopy` at its third consumer. `cargo rivet fleet objects backup`/
+# `restore` (`crate::fleet`) is this crate's own use of it — `key backup`/
+# `restore` (`crate::key_backup`) does not call it, because a seed's bytes
+# are encrypted before anything is written and a generic byte-copier has no
+# business seeing them plain.
+rivetos-filecopy = { path = "../../rivet-filecopy" }
+
+# **The fleet register** — `PLAN-Feature-Set-2026-09-12` §7.1: `cargo rivet
+# run <device>` and `deploy <device>` resolve the address and pin out of the
+# same register `cmd/rivet-fleet` already reads, rather than a second store.
+# `ADR-034` §3: the register holds no secret, so linking it here adds no
+# private key surface to a HOST tool that already holds one.
+rivetos-register = { path = "../../rivet-register" }
+
+# **The fleet repository's text half** — `ADR-052` §9 step 2, `.rulings/`
+# R-178 P4. `cmd/rivet-provision` used to call `record_document` itself, the
+# moment its own `w` key wrote a document — before any card existed. R-178
+# P4/R-176 Q10 moved that call HERE: `cargo rivet provision` commits the
+# document (and, new with this crate depending on it, projects the register
+# with `record_register`) only after `write_image::run` has actually written
+# and verified a card. Not a second implementation of either primitive — the
+# same functions `cmd/rivet-provision` already called, just from the process
+# that now knows whether a card was actually produced.
+rivetos-fleet-repo = { path = "../../rivet-fleet-repo" }
+
+# Configuration, structured logging, self-update, and the standard CLI
+# surface. Taken here for exactly one thing: `crate::device` locates
+# `rivet-fleet`'s register the same way that tool does, at Ignition's own
+# platform-correct configuration path (`ADR-034` §10.3's `Config::register_dir`).
+# `ADR-034` §10.3's table of exclusions is about being on a DEVICE — every
+# excluded binary links into what a login session execs on a card — and this
+# is a HOST tool, same as `rivet-fleet` and `rivet-reset`, which already take
+# it for the same register lookup (`cmd/rivet-reset/src/workstation.rs`).
+ignition = { git = "https://github.com/caladil/Ignition", tag = "v0.3.0" }
+
+# Required by `ignition::config`, which loads a consumer's schema through
+# serde — the same reason `cmd/rivet-reset` and `cmd/rivet-fleet` take it.
+serde = { version = "1", features = ["derive"] }
+
+# **The control plane's default PORT, and nowhere else to read it from.** A
+# cold agent found three ports in three places on 2026-08-29 (README 7423,
+# rivet-mcpd --help 7777, the board 7777); this crate needed the number to say
+# it in a refusal, and writing 7777 here would have made a fourth spelling.
+# ADR-011: one fact, one owner — rivet-config owns [control-plane].
+rivetos-config = { path = "../../rivet-config" }
+
+# Reading the *user's* `Cargo.toml`, which is somebody else's file in a format
+# this project does not own.
+#
+# The same crate and the same version `rivet-config` takes, deliberately: two
+# TOML parsers in one workspace would be two answers to "what does this file
+# say", and `ADR-009` §4 is about exactly that. `default-features = false`, with
+# `parse` for reading the user's `Cargo.toml` — a format this project does not
+# own — plus `serde` and `display` (`ADR-034` §11.5's `enroll` module, arriving
+# 2026-09-22): rendering one `rivetos_register::Device` to the exact bytes
+# `rivet-register::read_device` parses back, the same two features
+# `cmd/rivet-fleet`'s Cargo.toml already carries for the identical call
+# (`toml_edit::ser::to_string_pretty`), so this is the same combination proven
+# elsewhere rather than a new one.
+toml_edit = { version = "0.25.13", default-features = false, features = ["parse", "serde", "display"] }
+
+# **`fatfs` only** — `cargo rivet provision` writes a document into a FAT boot
+# partition. `mbrman` and `sysinfo` were here and are gone: the partition table
+# is GPT and `crate::gpt` reads it in a hundred lines, and disk enumeration was
+# twenty crates for a question `--device` answers.
+fatfs = "0.3"
+
+# **`cargo rivet image` alone — the ONE place in the workspace that runs a
+# zstd codec.** `R-177.1`, `ADR-009` §3.2/§3.7's survey pattern applied to a
+# third crate: `ADR-029` §13/R-107 (2026-08-29) rules that a decompressor must
+# never be a permanent dependency on a device, so this crate MUST NOT reach
+# `rivet-core` or any board binary — `rivet_core::package::read::COMPRESSION_ZSTD`
+# is a byte value there, never an implementation. `cargo-rivet` is a HOST tool
+# that never ships on a card (see this file's own header comment), so linking
+# a codec here costs nothing on the one machine `ADR-009` §5 asks about —
+# `cargo tree --target aarch64-unknown-linux-musl -p rivetos-sysd` finds no
+# `zstd` for the same reason it finds no `getrandom`.
+#
+# `default-features = false` — the `zstdmt` feature pulls in `zstd-sys`'s
+# multi-thread build option, which this tool has no use for: a card build
+# happens once per publish, not on a hot path, and single-threaded compression
+# of a ~2 GiB image is minutes, not the axis R-177.1 was measured on (transfer
+# and decompression time, not compression time on the workstation).
+zstd = { version = "0.13", default-features = false }
+
+# **The passphrase envelope, `crate::envelope`** — `cargo rivet key
+# backup`/`restore` (R-183 D3) and `backup-secrets`/`restore-secrets` (R-185
+# D1) seal in the one format. `ADR-009` §3.10 is the survey; the short form: both are
+# RustCrypto, pure Rust (no C, no cross-compile gate — this dependency is
+# workstation-only exactly as zstd (§3.8) and portable-pty (§3.9) are, and
+# `cargo tree --target aarch64-unknown-linux-musl -p rivetos-sysd` finds
+# neither), and both are widely reviewed rather than hand-rolled — `ADR-009`
+# §3.3's "cryptography is the case where a bespoke version is worse."
+#
+# `argon2` (key stretching, RFC 9106's Argon2id) and `chacha20poly1305`
+# (the authenticated cipher, XChaCha20-Poly1305 — the 192-bit nonce removes
+# any birthday-bound concern from a nonce this tool generates fresh per
+# backup rather than manages a counter for). `default-features = false` on
+# both: neither needs `std`'s allocation conveniences beyond what this
+# module already provides its own buffers for, and `argon2`'s `password-hash`
+# feature (a PHC string encoder/decoder for a *server's* password database)
+# is not this file's format at all — the envelope below is self-describing
+# on its own terms.
+argon2 = { version = "0.5", default-features = false, features = ["alloc"] }
+chacha20poly1305 = { version = "0.10", default-features = false, features = ["alloc"] }
+
+# **The passphrase prompt, no echo, both platforms.** `crate::envelope` is
+# its one caller, for the seed backup and the machine-secrets backup; nothing
+# else in this crate asks a person to type a secret rather than pass it as a
+# file or a flag. Survey in
+# `ADR-009` §3.10: the smallest widely-used crate that reads a terminal's
+# password mode on both Windows (`ReadConsoleW` + `ENABLE_ECHO_INPUT` off)
+# and Unix (`termios`) without pulling a TUI framework for one prompt.
+rpassword = "7"
+
+# **Inflate, for `crate::apk_read` alone** — `ADR-061` §4. The entries inside an
+# APK are deflated, and `fleet publish FILE.apk` reads the manifest and the
+# resource table out of it itself rather than calling Android's tools. Pure
+# Rust; its one dependency is `adler2`, a zero-dependency checksum it needs for
+# zlib streams this tool never reads. Workstation-only like `zstd` above:
+# `cargo tree --target aarch64-unknown-linux-musl -p rivetos-sysd` finds neither.
+miniz_oxide = "0.9"
+
+# **SHA-256, for an APK signer's fingerprint** — `ADR-061` §3: `signer_sha256`
+# is the SHA-256 of the signing certificate's DER, which is how Android and
+# `apksigner` name a key. Not a new crate in the graph: the same version and
+# features `cmd/rivet` and `cmd/rivet-fleetd` already name.
+sha2 = { version = "0.10", default-features = false }
+
+# **A fleet-root mode fleet's root, read back** — `ADR-063` §4.2. `cargo rivet
+# fleet root` recomputes the fingerprint of the root a board answers with the
+# same functions the board journals it with, so the two cannot disagree about
+# the encoding. Internal; adds no crate to the lock.
+rivetos-fleet-root = { path = "../../rivet-fleet-root" }
+
+[lints]
+workspace = true
+
+# **R-178 P6 — the interview proven under a REAL terminal.** `cmd/rivet-provision`'s
+# menu reads real stdin and writes real stdout; a piped-stdin test proves
+# nothing about the menu code a terminal actually exercises (line editing,
+# `is_terminal()` detection, ANSI). `portable-pty` is dev-only, host-only
+# (`cargo-rivet` never ships on a card — this file's own header), and it is
+# the ONLY maintained crate that gives Rust a real pty on BOTH Windows
+# (ConPTY, via the `winpty`/`conpty` backends it already carries) and Unix —
+# hand-rolling `CreatePseudoConsole` here would duplicate a widely-used
+# crate for no gain (`ADR-009` §3, the reuse ladder). Survey recorded at
+# `ADR-009` §3.9. `default-features = false`: this harness only opens a pty
+# and reads/writes bytes, never portable-pty's own `serde` support for
+# passing a `PtySize` across a process boundary this tool has no use for.
+[dev-dependencies]
+portable-pty = { version = "0.9.0", default-features = false }
+# **`cargo rivet backup`'s control-plane round trip** — `ADR-051` §8. A
+# test-only pinned TLS SERVER standing in for `rivet-mcpd`, which records the
+# certificate every connection presents. Not a new crate in the graph: `rustls`
+# 0.23 already reaches this binary through `rivetos-tls`, and this is the same
+# version and features every other member of the workspace names (`rivet-tls`,
+# `rivet-remote`, `rivet-proxyd`). Named directly only so a test can build the
+# server side.
+rustls = { version = "0.23", default-features = false, features = ["std", "ring"] }

@@ -1,0 +1,32 @@
+# **The link recipe, copied from `examples/probes/mesa-demo/.cargo/config.toml`**
+# — whose comments carry the argument for each flag. Every one of them was
+# found by a linker error and none is guessable, which is why this is a copy
+# rather than a fresh attempt.
+#
+# **The paths are the build container's.** `ADR-026` §7 makes the container the
+# Linux side of this project and `tools/container/exec.sh` mounts the Buildroot
+# tree at `/br`. This crate cannot be built anywhere else.
+#
+# It lives here rather than in a `RUSTFLAGS` export because `cargo rivet
+# package` runs its own `cargo build` and would know nothing about a variable
+# set for a different command — `mesa-demo`'s recorded mistake, not repeated.
+[target.aarch64-unknown-linux-musl]
+linker = "/br/host/bin/aarch64-linux-gcc"
+rustflags = [
+    # There is no static libEGL, libGLESv2 or libgbm.
+    "-C", "target-feature=-crt-static",
+    # Let GCC drive the link: rust-lld cannot find libgcc_s or libgcc, which
+    # live under lib/gcc/<tuple>/<version>/ — a path the cross GCC computes.
+    "-C", "link-self-contained=no",
+    # Where Buildroot stages the link-time libraries. The RUNTIME copies are in
+    # /lib on the card, put there by tools/card/build.sh's collect_libraries —
+    # and, for GBM's dlopen'd backend, by collect_gbm_backends beside it.
+    "-L", "/br/staging/usr/lib",
+    # **Four, where `mesa-demo` names three.** `libdrm` is the addition and it
+    # is the whole point of this probe: mode-setting and page-flipping are
+    # libdrm's, and Mesa's GBM is what hands the GPU's buffer to them.
+    "-l", "EGL",
+    "-l", "GLESv2",
+    "-l", "gbm",
+    "-l", "drm",
+]

@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Passkey probe</title>
+<style>
+  :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+  body { max-width: 40rem; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; }
+  button { font-size: 1.1rem; padding: .7rem 1.2rem; margin: .3rem .5rem .3rem 0; }
+  pre { white-space: pre-wrap; word-break: break-word; padding: .8rem;
+        border: 1px solid #8884; border-radius: .4rem; }
+  .ok { color: #1a7f37; } .bad { color: #cf222e; }
+</style>
+</head>
+<body>
+<h1>Passkey probe</h1>
+<p>Does this browser accept a passkey for <b id="host"></b>? Press the two
+buttons in order. Each outcome is recorded on the board; nothing is stored
+anywhere else, and the passkey this makes can be deleted afterwards.</p>
+<button id="create">1. Create a passkey</button>
+<button id="use">2. Sign in with it</button>
+<pre id="log"></pre>
+<script>
+"use strict";
+const host = location.hostname;
+document.getElementById("host").textContent = host;
+const log = document.getElementById("log");
+
+function line(text, cls) {
+  const span = document.createElement("span");
+  if (cls) span.className = cls;
+  span.textContent = text + "\n";
+  log.appendChild(span);
+}
+
+// **Captures, for rivet-webauthn's test vectors.** Every value a relying
+// party needs to verify this ceremony, base64url without padding, journalled
+// whole so a real browser's bytes can be copied off the board and labelled
+// "captured from a real browser". The probe verifies none of them itself.
+function b64url(buf) {
+  let s = ""; for (const b of new Uint8Array(buf)) s += String.fromCharCode(b);
+  return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function bytes(n) {
+  const b = new Uint8Array(n);
+  crypto.getRandomValues(b);
+  return b;
+}
+
+async function report(step, ok, detail) {
+  const outcome = { step, ok, host, origin: location.origin,
+                    secure: window.isSecureContext, ...detail };
+  line(step + ": " + (ok ? "OK" : "FAILED") + " " + JSON.stringify(detail),
+       ok ? "ok" : "bad");
+  try {
+    await fetch("result", { method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(outcome) });
+  } catch (e) {
+    line("(could not record this on the board: " + e + ")", "bad");
+  }
+}
+
+async function environment() {
+  const detail = { webauthn: typeof PublicKeyCredential !== "undefined" };
+  if (detail.webauthn &&
+      PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable) {
+    detail.platformAuthenticator =
+      await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+  }
+  await report("environment", window.isSecureContext && detail.webauthn, detail);
+}
+
+document.getElementById("create").onclick = async () => {
+  try {
+    const challenge = bytes(32);
+    const credential = await navigator.credentials.create({ publicKey: {
+      rp: { id: host, name: "Rivet passkey probe" },
+      user: { id: bytes(16), name: "probe@" + host, displayName: "Rivet probe" },
+      challenge,
+      pubKeyCredParams: [{ type: "public-key", alg: -8 },
+                         { type: "public-key", alg: -7 },
+                         { type: "public-key", alg: -257 }],
+      authenticatorSelection: { residentKey: "required",
+                                userVerification: "required" },
+      attestation: "none",
+      timeout: 120000,
+    }});
+    await report("create", true, { id: credential.id.slice(0, 16),
+      attachment: credential.authenticatorAttachment || null,
+      capture: { rpId: host, challenge: b64url(challenge),
+        credentialId: credential.id,
+        clientDataJSON: b64url(credential.response.clientDataJSON),
+        attestationObject: b64url(credential.response.attestationObject) } });
+  } catch (e) {
+    await report("create", false, { name: e.name, message: e.message });
+  }
+};
+
+document.getElementById("use").onclick = async () => {
+  try {
+    const challenge = bytes(32);
+    const assertion = await navigator.credentials.get({ publicKey: {
+      rpId: host, challenge, userVerification: "required",
+      timeout: 120000,
+    }});
+    await report("get", true, { id: assertion.id.slice(0, 16),
+      attachment: assertion.authenticatorAttachment || null,
+      capture: { rpId: host, challenge: b64url(challenge),
+        credentialId: assertion.id,
+        clientDataJSON: b64url(assertion.response.clientDataJSON),
+        authenticatorData: b64url(assertion.response.authenticatorData),
+        signature: b64url(assertion.response.signature) } });
+  } catch (e) {
+    await report("get", false, { name: e.name, message: e.message });
+  }
+};
+
+environment();
+</script>
+</body>
+</html>

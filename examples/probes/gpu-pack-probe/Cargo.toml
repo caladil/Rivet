@@ -1,0 +1,79 @@
+# **Does the SHIPPING pack draw on the GPU, and what does it cost?**
+#
+# `examples/probes/gpu-surface` answered a different question and answered it
+# well: can a dma-buf cross to `rivet-displayd`, and what do five backgrounds
+# cost when the drawing is a shader? But the code it measured was **its own
+# copy** of those backgrounds — `src/contours.rs`, 2,049 lines transcribed out
+# of `aura-background-pack` for the purpose.
+#
+# `.rulings/` R-207 rules what SHIPS, and what ships is the pack. Between the
+# probe's copy and the pack there is now a whole boundary — `rivetos_addon::gl`,
+# a `dlopen`, a descriptor, a `dlsym`-resolved GLES table — and not one metre of
+# it was exercised by the measurement the ruling was made on.
+#
+# This probe closes that. It loads the installed library, asks it what it can
+# draw, and drives its GPU entry point across a real surface. **The number it
+# reports is the number the product will have.**
+#
+# Its own workspace, like every other example.
+[workspace]
+
+[package]
+name = "gpu-pack-probe"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+description = "Measures an installed background pack's GPU path across a real compositor surface"
+
+[package.metadata.rivet]
+kind    = "daemon"
+restart = "never"
+ready   = "none"
+
+# **`gpu`, not `display`** — R-206 D4, the same declaration `gpu-surface`
+# carries and for the same reason: this renders into its own buffer on the
+# render node and hands the compositor a descriptor. It has no card node and
+# cannot modeset.
+devices = ["gpu"]
+
+# The surface, so a machine with no compositor is a named refusal rather than a
+# program that starts and draws nothing.
+connects = ["rivet-displayd:wayland"]
+
+# `libEGL`, `libGLESv2` and `libgbm` are in
+# `rivet_core::package::library::PUBLIC_LIBRARIES`.
+#
+# **The PACK is not named here**, and that is not an omission — see
+# `accepts-class` below.
+library = []
+
+# **The class this probe hosts**, and the reason `library` above is empty.
+#
+# The supervisor puts every installed library whose `provides-class` is in this
+# list onto this program's `LD_LIBRARY_PATH` at each discovery pass, and grants
+# the same directories in its Landlock ruleset. Without this line
+# `rivetos_addon::host::installed` would enumerate nothing — not because the
+# pack is absent from the board, but because this process would not be able to
+# see it — and the probe would report "no pack of this class is installed",
+# which is a true sentence about the wrong thing.
+#
+# The same line `examples/aura/aura-renderer/Cargo.toml` carries, and it names
+# a ROLE rather than an artifact: whichever pack the operator installed is the
+# one measured.
+accepts-class = ["aura-background"]
+
+network = "none"
+
+[dependencies]
+# The surface and the context — the same path `aura-renderer` will take, so
+# what is measured here is what the renderer will get.
+rivetos-sdk = { path = "../../../rivet-sdk", features = ["composited-gpu"] }
+
+# The boundary under test. This probe is a HOST: it uses `host::Loaded`, which
+# is the half a pack never sees.
+rivetos-addon = { path = "../../../rivet-addon" }
+
+[profile.release]
+opt-level = 3
+lto = true

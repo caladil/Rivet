@@ -1,0 +1,203 @@
+# **`rivet-fleetd`** — the fleet server, and an ORDINARY APPLICATION.
+#
+# `ADR-034` §2.2 designed this in 2026-08-26 as Remote mode — *"a directory
+# owned by `rivet-fleetd` on a Rivet machine"* — and it was never built. The
+# row that describes it named a transport `ADR-035` retired three days later.
+# The design survives; that sentence does not.
+#
+# # Why it is an application and not image machinery
+#
+# The maintainer's ruling, 2026-09-01: the HTTP side of the fleet server is
+# `rivet-fleetd` itself, which speaks MCP to whichever `rivet-mcpd` it holds keys
+# to, and that makes it nothing but a standard network service rvt application
+# (.rulings/ R-281).
+#
+# The side effect is the best part. **Exposure is limited by not installing
+# it**: a managed node does not carry the web stack because it does not carry
+# this program. There is nothing to disable and nothing to configure off.
+#
+# And self-management needs no special case — a fleet server managing itself
+# talks to its own `rivet-mcpd` exactly as it talks to any other node.
+#
+# # It links Rivet crates, and that is allowed
+#
+# `ADR-036` ruling 2 — *"an application does not link `rivet-core`"* — is about
+# a FOREIGN program, one somebody else wrote for their own purpose. This is
+# Rivet's own machinery that happens to ship as an application, which
+# `cmd/rivet-launcher` already established.
+[package]
+name = "rivetos-fleetd"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "The fleet server: HTTPS for people, MCP to machines. ADR-034 Remote mode."
+
+[[bin]]
+name = "rivet-fleetd"
+path = "src/main.rs"
+
+# **The manifest, and it should have been here from the first commit.**
+#
+# The audit of 2026-09-03 found this table missing (`PLAN.md` §123, Wave 1.6).
+# The consequence is not that the program misbehaves — it is that **what runs on
+# a fleet server could not be reproduced from this tree.** Every other
+# application in the repository declares what it asks the machine for, right
+# here, and this one asked in somebody's packaging command instead. `ADR-011`:
+# a fact has one home, and an application's requests belong in its own manifest.
+[package.metadata.rivet]
+# A long-running process the supervisor keeps up.
+kind = "daemon"
+
+# **The reason this program has no `bind()` call.** The supervisor opens the
+# port as root and passes the descriptor (`ADR-015` §5.2), so this process never
+# holds `CAP_NET_BIND_SERVICE` — which is the module header's first claim and
+# this is the line that makes it true. 4443 is privileged too, so the claim is
+# unchanged by the move.
+#
+# **4443 since 2026-09-05, ruled by the maintainer** — `R-152.3` left fleet's
+# port open and he named this one. ~~443.~~ `rivet-proxyd` took the machine's
+# front door (`ADR-046` §7), and two things cannot bind one port.
+#
+# **Fleet stays DIRECTLY reachable and keeps its own mTLS**, rather than
+# becoming a route behind the proxy: the administration surface must not depend
+# on the thing it administers. A proxy that will not start is a machine to be
+# fixed, and the tool that fixes it must not be behind the proxy.
+#
+# **The cost, stated because it is the maintainer's:** the web portal moves from
+# `https://rivet-01.local/` to `https://rivet-01.local:4443/`, and a bookmark to
+# the old address will reach the proxy's index instead.
+#
+# **Bound on every address, with no `:direct`**: this manifest declares no
+# `proxy-path`, and the supervisor binds loopback only for an application that
+# does (`ADR-046` §7, `.rulings/` R-188).
+listen = ["tcp:4443"]
+
+# **The socket `gantry` reads the store and the phones through** — `ADR-061`
+# §6, wire format `SPEC-06`. The supervisor binds it `0600` and grants it to the
+# one application declaring `connects = ["rivet-fleetd:gantry"]`; the program
+# also checks each caller's uid, because a grant goes to whoever declares it.
+provides = ["socket:gantry"]
+
+# Its own directory and nothing else: the register, the server certificate and
+# key, the authority, and this machine's own control-plane identity all live in
+# `RIVET_APP_DATA`.
+state = "private"
+
+# **`egress`, and the honesty of it is the point.** This program dials every
+# machine in the register over `ADR-035`'s control plane. There is no network
+# namespace on this build (`ADR-015` §6), so the value confines nothing — what
+# it does is make `Manifest::unenforced` say `network`, and stop an operator
+# reading a declaration that says this daemon reaches nothing while it reaches
+# every board in the fleet.
+network = "egress"
+
+# A fleet server that has died should come back; one that was stopped should
+# stay stopped.
+restart = "on-failure"
+
+# **`none`, deliberately, and not `listening`.** `cmd/rivet-sysd` maps
+# `listening` to `Readiness::ListeningUnsupported` — it will not claim a
+# readiness signal it cannot observe — so declaring it here would buy a journal
+# record saying so and nothing else. This program is ready when the supervisor
+# has started it, which is what `none` means.
+ready = "none"
+
+# Static, like everything else Rivet builds.
+library = []
+
+# **Fleet as code** — `ADR-044`, `.rulings/` R-145. The fleet's desired-state
+# documents live in a git repository and a push is what changes the fleet;
+# these say where that repository is.
+#
+# **`fleet-repository` unset is the off switch**, and it is off by default
+# rather than behind a flag: every machine carrying this application today has
+# none of these set, and none of them grows a poller. Setting the first one is
+# the whole of turning it on.
+#
+# It is pleasingly recursive that they live in the fleet server's OWN
+# desired-state document, under `[applications.rivet-fleetd]`: a fleet server's
+# configuration is itself fleet-as-code.
+settings = ["fleet-repository", "fleet-branch", "fleet-poll-seconds"]
+
+[dependencies]
+# **Handed its listener**, like any application — the SDK's first article
+# (`ADR-036` §2). The
+# supervisor binds 443 as root and passes the descriptor, so this program never
+# holds `CAP_NET_BIND_SERVICE` and never knows the port (`ADR-015` §5.2).
+rivetos-sdk = { path = "../../rivet-sdk" }
+
+# **The browser half.** A browser will not pin, so this side is ordinary TLS: a
+# certificate chaining to the fleet's authority, and a client certificate
+# checked against that same authority. `rivet-tls` deliberately does not do
+# this -- it pins raw Ed25519 keys, which is right for a machine and impossible
+# for a browser.
+#
+# Same version as `rivet-tls` so there is one rustls in the tree.
+# **No `tls12`, and this manifest is half the reason it is gone** —
+# `.rulings/` R-140. Cargo unifies features, so leaving it here would put TLS
+# 1.2 back into `rivetos-tls` as well and both manifests would still read as
+# though it had been removed. This daemon is the browser-facing one, so it is
+# also the consumer the ruling required checking: it negotiated 1.3 against a
+# default client on the board, and accepted a forced 1.2 handshake, which is
+# what made removing it worth doing rather than cosmetic.
+rustls = { version = "0.23", default-features = false, features = ["std", "ring"] }
+rustls-pemfile = "2"
+
+# A fingerprint for the page, and no certificate parser for one string.
+sha2 = { version = "0.10", default-features = false }
+
+# **The machine half**, for talking to nodes over ADR-035's control plane. Not
+# used yet -- the first slice proves the browser side -- and named here because
+# the two halves are the whole point of the component.
+rivetos-tls = { path = "../../rivet-tls" }
+# **The register** — `ADR-034` §2's store. Dropping Local mode put it on a fleet
+# server, so this program is the one that owns the directory; the format is
+# unchanged from the workstation tool that used to (§10.2).
+rivetos-register = { path = "../../rivet-register" }
+
+# **How a member's `<name>.local` becomes an address to dial.** A DHCP member's
+# register record carries no address — `Device::dial_host` derives `<name>.local`
+# for it — and `node.rs` resolved every address through the OS, which on a card
+# cannot answer a `.local` name. This is the query counterpart to the
+# `rivet-mdnsd` responder every card already runs; `rivet-remote` links the same
+# crate so the fleet server and the host tools resolve a member identically.
+rivetos-mdns = { path = "../../rivet-mdns" }
+
+# For `journal::write_json_string`, the workspace's tested RFC 8259 escaper. A
+# device label is a human's text and must not reach a browser unescaped.
+#
+# **And, since `ADR-044`, for three more things that must not be spelled twice**:
+# `json::parse` reads a machine's MCP answer, `operation::{DESIRED_STATE, EDIT,
+# CONFIRMATION}` are the words both ends of that call have to agree on, and
+# `converge` is the fleet-as-code decision itself.
+rivetos-core = { path = "../../rivet-core" }
+
+# **The schema, and the leaf reader over it** — `ADR-044` §5.
+#
+# Two uses and they are different. `Document::parse` is the guard: a document
+# in the repository goes through the machine's own schema on THIS server before
+# anything is sent, so a push carrying an unknown key — which is the only shape
+# a credential could take, `ADR-007` §7.3 — never reaches a machine.
+# `leaves::leaves` is how two documents are compared by value rather than by
+# byte, which is what lets a poller stay silent against a machine whose file
+# carries the formatting of every `apply edit` ever run against it.
+#
+# It brings `toml_edit` onto the card in this binary. That is the honest cost
+# and it is the same parser the machine already runs, which is the point: a
+# second TOML reader with its own opinions is how a fleet server and a machine
+# come to disagree about a document neither of them wrote.
+rivetos-config = { path = "../../rivet-config" }
+
+# **Only the tests mint**, and they mint with `cmd/rivet-provision`'s own
+# authority module, compiled in by path (`src/main.rs`, `provision_ca`). These
+# are what that module links, at `cmd/rivet-provision`'s versions and features,
+# so no second `rcgen` or parser enters the workspace.
+[dev-dependencies]
+rcgen = { version = "0.14", default-features = false, features = ["ring", "pem", "x509-parser"] }
+x509-parser = "0.18"
+rustls-pki-types = "1"
+
+[lints]
+workspace = true

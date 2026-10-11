@@ -1,0 +1,583 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Aura Controller</title>
+  <link rel="stylesheet" href="static/style.css">
+  <!-- **Appearance, applied BEFORE the first paint.**
+       Inline and in the head on purpose: run from `app`-time script and the
+       browser paints its own choice first, then this replaces it — a flash of
+       the wrong theme on every load, which looks fine to whoever wrote it if
+       their system already matched.
+
+       **Read from this browser and nowhere else.** How a page is painted is
+       the viewer's preference, not the appliance's configuration; it has no
+       business following somebody from their laptop to their phone. What the
+       WALL shows — `temp_unit`, brightness, the screensaver — is configuration
+       and lives in the machine's config where it persists.
+
+       Absent means *follow the browser*: the stylesheet's dark rules live in
+       `@media (prefers-color-scheme: dark)` and only `data-theme="light"`
+       opts out of them, so the default needs no value and no code. -->
+  <script>
+    try {
+      var t = localStorage.getItem('aura.theme');
+      if (t === 'light' || t === 'dark') {
+        document.documentElement.setAttribute('data-theme', t);
+      }
+    } catch (e) {
+      // `localStorage` throws in some privacy modes. A theme preference must
+      // never be the reason a page fails to render, so this is swallowed and
+      // the browser's own choice stands.
+    }
+  </script>
+</head>
+<body>
+<div class="layout">
+
+  <!-- ── The title bar ──────────────────────────────────────
+       Identity left, sections right, one rule beneath — the family pattern
+       the sibling applications' pages share. The sidebar that used to be
+       here drove the sections down the side of the page; the maintainer's
+       2026-09-20 decision is that the family drives them from the title bar.
+
+       The title aligns to the content's left margin because this header is
+       INSIDE `.layout`, which centres a measure. That is the whole mechanism,
+       and it is the same one TempMon is being corrected towards. -->
+  <header class="app-header">
+    <div class="identity" onclick="show('dashboard')" title="Overview">
+      <!-- Aura's mark, and the favicon: three concentric circles, drawn in
+           `currentColor` so it takes the accent in both themes. The accent
+           IS this mark's colour — see `style.css`. -->
+      <svg class="mark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+           role="img" aria-label="Aura">
+        <circle cx="12" cy="12" r="3" fill="currentColor"/>
+        <circle cx="12" cy="12" r="6.5" stroke="currentColor" stroke-width="1.5" opacity="0.6"/>
+        <circle cx="12" cy="12" r="10.5" stroke="currentColor" stroke-width="1" opacity="0.3"/>
+      </svg>
+      <h1>AURA</h1>
+    </div>
+
+    <!-- Icon-only, with a real label for assistive technology and a tooltip
+         for everybody else: six labelled buttons wrap the header on a phone,
+         which is the layout this pattern exists to avoid. -->
+    <nav class="actions" aria-label="Sections">
+      <button type="button" class="nav-item" data-section="general" data-tip="General" aria-label="General">
+        <svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
+      <button type="button" class="nav-item" data-section="display" data-tip="Display" aria-label="Display">
+        <svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="7" width="20" height="15" rx="2" ry="2"/><polyline points="17 2 12 7 7 2"/></svg>
+      </button>
+      <button type="button" class="nav-item" data-section="weather" data-tip="Weather" aria-label="Weather">
+        <svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>
+      </button>
+      <!-- The reading card's section. Its name is the installed addon's own
+           (`READING_TITLE`), because this page has no word for what the card
+           shows; the icon is a trend line, which says "a value over time" and
+           nothing about which value. -->
+      <button type="button" class="nav-item" data-section="reading" data-tip="{{READING_TITLE}}" aria-label="{{READING_TITLE}}">
+        <svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+      </button>
+      <button type="button" class="nav-item" data-section="schedule" data-tip="Schedule" aria-label="Schedule">
+        <svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      </button>
+      <!-- ── App-wide actions, behind one button ──────────────
+           **Six sections plus every action laid flat is how a title bar
+           stops working.** Backup and Restore would have made eight icons
+           and wrapped the header on a phone, and the next action would
+           have made nine.
+
+           The split is not cosmetic: the six above are NAVIGATION — where
+           you are — and stay visible because that is what a person reads
+           to orient. These are ACTIONS, used rarely and never as a way of
+           getting somewhere, so they cost one button and the menu grows
+           without the header changing again. -->
+      <div class="menu-wrap">
+        <button type="button" class="nav-item" id="more-btn" data-tip="Tools"
+                aria-label="Tools" aria-haspopup="true" aria-expanded="false">
+          <svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </button>
+        <!-- **Grouped by what a thing ACTS ON, widening downwards**, which is
+             the shape TempMon's menu uses and the reason it is safe to put a
+             preference and a restore in one place: the preference is furthest
+             from the destructive action, with a rule and a heading between
+             them, rather than one careless click away. -->
+        <div class="menu" id="more-menu" role="menu" hidden>
+          <p class="menu-title">Tools</p>
+
+          <p class="menu-heading">This browser</p>
+          <!-- No `name`, never posted: how this page is painted belongs to
+               the browser reading it, not to the appliance. The inline script
+               in <head> applies it before the first paint. -->
+          <label class="menu-field">
+            <span class="visually-hidden">Appearance</span>
+            <select id="theme">
+              <option value="">Browser Default</option>
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
+            </select>
+          </label>
+
+          <hr class="menu-rule">
+          <p class="menu-heading">This machine</p>
+          <!-- A plain link, so the browser's own download handles it. A
+               button posting through script would have to rebuild what an
+               anchor already does, including the filename. -->
+          <a class="menu-item" role="menuitem" href="backup" download>
+            <svg class="menu-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4.5v11M8 11.5l4 4 4-4"/><path d="M4.5 14.5v4a1 1 0 0 0 1 1h13a1 1 0 0 0 1-1v-4"/></svg>
+            Backup
+          </a>
+          <button type="button" class="menu-item danger" role="menuitem" id="restore-btn">
+            <svg class="menu-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15.5V4.5M8 8.5l4-4 4 4"/><path d="M4.5 14.5v4a1 1 0 0 0 1 1h13a1 1 0 0 0 1-1v-4"/></svg>
+            Restore…
+          </button>
+          <!-- Hidden, and opened by the button above: a bare file input in a
+               menu is the one control no stylesheet can make match. -->
+          <input type="file" id="restore-file" accept="application/json,.json" hidden>
+        </div>
+      </div>
+    </nav>
+  </header>
+
+  <!-- Content -->
+  <main class="content">
+
+    {{FLASH}}
+
+    <!-- ── Dashboard ─────────────────────────────────────── -->
+    <section id="dashboard" class="section">
+      <div class="section-title">Overview</div>
+      <div class="dash-status">
+        <span class="status-dot {{RENDERER_CLASS}}"></span>
+        Renderer {{RENDERER_TEXT}}
+      </div>
+      <div class="dash-grid">
+        <div class="dash-card">
+          <div class="dash-label">Screensaver</div>
+          <div class="dash-value">{{DASH_SCREENSAVER}}</div>
+        </div>
+        <div class="dash-card">
+          <div class="dash-label">Brightness</div>
+          <div class="dash-value">{{BRIGHTNESS}}%</div>
+        </div>
+        <div class="dash-card">
+          <div class="dash-label">Weather</div>
+          <div class="dash-value">{{DASH_WEATHER}}</div>
+        </div>
+        <div class="dash-card">
+          <div class="dash-label">Indoor</div>
+          <div class="dash-value">{{DASH_INDOOR}}</div>
+        </div>
+        <div class="dash-card">
+          <div class="dash-label">{{READING_TITLE}}</div>
+          <div class="dash-value">{{DASH_READING}}</div>
+        </div>
+        <div class="dash-card">
+          <div class="dash-label">Clock</div>
+          <div class="dash-value">{{DASH_CLOCK}}</div>
+        </div>
+        <div class="dash-card">
+          <div class="dash-label">Timezone</div>
+          <div class="dash-value">{{DASH_TIMEZONE}}</div>
+        </div>
+        <div class="dash-card">
+          <div class="dash-label">Schedule</div>
+          <div class="dash-value">{{DASH_SCHEDULE}}</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Single form wraps General / Display / Weather / the reading card -->
+    <form method="POST" action="config" id="cfg-form">
+      <input type="hidden" name="section" id="form-section" value="general">
+
+      <!-- ── General ──────────────────────────────────── -->
+      <section id="general" class="section">
+        <div class="section-title">General</div>
+
+        <div class="field">
+          <label>Timezone</label>
+          <div class="readonly-value">{{DASH_TIMEZONE}}</div>
+          <p class="hint">Set on the <strong>machine</strong>, not here. Rivet
+            projects the machine's <code>timezone</code> key to
+            <code>/etc/localtime</code>, and both halves of Aura read that — so
+            there is one answer to what time it is instead of two that can
+            disagree. Change it with
+            <code>rivet apply edit timezone &lt;zone&gt; confirm</code>.</p>
+        </div>
+
+        <div class="field">
+          <label for="zip_code">Zip Code</label>
+          <input id="zip_code" type="text" name="zip_code" value="{{ZIP_CODE}}" placeholder="20500" inputmode="numeric">
+        </div>
+
+        <div class="toggle-row">
+          <input id="use24" type="checkbox" name="use_24_hour" value="1" {{CHK_USE_24_HOUR}}>
+          <label for="use24">24-hour clock</label>
+        </div>
+        <div class="toggle-row">
+          <input id="showdate" type="checkbox" name="show_date" value="1" {{CHK_SHOW_DATE}}>
+          <label for="showdate">Show date</label>
+        </div>
+
+        <div class="save-row">
+          <button class="btn btn-full" type="submit">Save General</button>
+        </div>
+      </section>
+
+      <!-- ── Display ──────────────────────────────────── -->
+      <section id="display" class="section">
+        <div class="section-title">Display</div>
+
+        <!-- **Appearance is not here**, and the line is worth knowing: this
+             section configures the WALL, and how this settings page is
+             painted is the preference of whoever is reading it. It lives in
+             the Tools menu, beside the other things that belong to a browser
+             or a machine rather than to the display. -->
+        <div class="field">
+          <label for="brightness">Brightness — <span id="bval">{{BRIGHTNESS}}</span>%</label>
+          <input id="brightness" type="range" name="brightness" min="5" max="100" step="5"
+                 value="{{BRIGHTNESS}}" oninput="bval.textContent=this.value">
+        </div>
+
+        <!-- The screensaver and its theme are BOTH rendered from the
+             background pack's own catalogue, since T7. Nothing in this file
+             names a background: a pack that grows a seventh one is offered
+             here without this page changing, which is the whole point of the
+             pack. On a machine with no pack installed there is nothing to
+             pick between, so a sentence saying so, and naming the library to
+             install, is rendered just below instead of the picker. -->
+        {{SCREENSAVER_FIELDS}}
+
+        <hr class="divider">
+        <div class="subsection-label">TV / HDMI-CEC</div>
+        <p class="hint">Switching a television on and off is the
+          <strong>machine's</strong>, not Aura's. A kiosk application holds the
+          display lease exclusively and cannot reach <code>/dev/cec</code>, so
+          Rivet keeps that device for itself and drives it from the machine
+          document's <code>[display]</code> table (ADR-039 §3.1):</p>
+        <p class="hint"><code>rivet apply edit display.off 19:00 confirm</code><br>
+          <code>rivet apply edit display.on 07:00 confirm</code></p>
+        <p class="hint">Both keys or neither — a machine told when to switch off
+          and never when to switch on is a machine somebody has to visit.</p>
+
+        <div class="save-row">
+          <button class="btn btn-full" type="submit">Save Display</button>
+        </div>
+      </section>
+
+      <!-- ── Weather ──────────────────────────────────── -->
+      <section id="weather" class="section">
+        <div class="section-title">Weather</div>
+
+        <div class="toggle-row">
+          <input id="weather_en" type="checkbox" name="weather_enabled" value="1" {{CHK_WEATHER}}>
+          <label for="weather_en">Enable weather</label>
+        </div>
+        <div class="field">
+          <label for="temp_unit">Temperature unit</label>
+          <select id="temp_unit" name="temp_unit">
+            <option value="imperial" {{SEL_UNIT_IMPERIAL}}>Fahrenheit (°F)</option>
+            <option value="metric"   {{SEL_UNIT_METRIC}}>Celsius (°C)</option>
+          </select>
+        </div>
+        <p class="hint">The panel always shows the condition icon, outdoor
+          temperature and humidity, the indoor column, and the NWS forecast
+          statement. Enable weather turns all of it on or off together.</p>
+        <div class="field">
+          <label for="weather_contact">Contact for the weather service</label>
+          <input id="weather_contact" type="text" name="weather_contact" value="{{WEATHER_CONTACT}}" placeholder="you@example.com" autocomplete="email">
+        </div>
+        <p class="hint">The National Weather Service asks every client for a
+          way to reach its operator, so Aura sends this in each weather
+          request. Leave it empty and requests name only Aura.</p>
+
+        <div class="section-title" style="margin-top:22px">Indoor (TempMon)</div>
+
+        <div class="toggle-row">
+          <input id="indoor_en" type="checkbox" name="indoor_enabled" value="1" {{CHK_INDOOR}}>
+          <label for="indoor_en">Show indoor conditions</label>
+        </div>
+        <!-- The three inputs that were here until 2026-09-20 are gone. The
+             indoor reading is a shared rivet now, and the fields rendered
+             just below are built from whatever rivetos_addon::Field set the
+             installed aura-indoor-source describes — exactly as the reading
+             card's section below is. Nothing on this page is specific to any one
+             addon, and the labels and hints a person reads come from the
+             addon that will act on them rather than from this file. -->
+        {{INDOOR_UNAVAILABLE}}
+        {{INDOOR_FIELDS}}
+        <!-- R-219: the TempMon name field rendered just above (the addon's
+             own `verify_as`) starts hidden — style="display:none" on its own
+             wrapper, not left out — whenever the URL above is a plain
+             http:// address, or this board's own loopback address, because
+             neither one has a certificate whose name this board could ask
+             the operator about. The script at the bottom of this page keeps
+             that in sync as the URL field is edited, without a reload. The
+             hint paragraph just below is non-empty only when a name IS
+             needed and could not be resolved — this board's own unreadable,
+             or another machine's left blank — in the resolver's own words. -->
+        {{INDOOR_NAME_HINT}}
+
+        <div class="save-row">
+          <button class="btn btn-full" type="submit">Save Weather</button>
+        </div>
+      </section>
+
+      <!-- ── The corner reading card ─────────────────── -->
+      <!-- Everything here but the toggle comes from the reading source's own
+           Describe answer (R-197 D3, R-375 D1): the heading is the addon's
+           own name, and this file names no quantity, no unit, no threshold
+           and no credential — see crate::portal::schema, which renders the
+           fields just below from whatever rivetos_addon::Field set the
+           loaded addon declared. A different addon fills this section in
+           differently with no change here. -->
+      <section id="reading" class="section">
+        <div class="section-title">{{READING_TITLE}}</div>
+
+        <div class="toggle-row">
+          <input id="reading_en" type="checkbox" name="reading_enabled" value="1" {{CHK_READING}}>
+          <label for="reading_en">Show this card on the display</label>
+        </div>
+
+        {{READING_UNAVAILABLE}}
+        {{READING_FIELDS}}
+
+        <div class="save-row">
+          <button class="btn btn-full" type="submit">Save {{READING_TITLE}}</button>
+        </div>
+      </section>
+
+      <!-- ── Security ─────────────────────────────────── -->
+      <!-- **There is no Security section**, and its absence is the accurate
+           statement. It held three paragraphs and no control: this portal has
+           no password, the connection was authenticated by certificate during
+           the TLS handshake before the page existed, and the three files that
+           make that work are installed by an operator rather than set here.
+           Nothing on it could be changed, so it was a section that existed to
+           explain that it was not a section. Taking an operator's access away
+           is still "stop issuing them a certificate" — that belongs in the
+           README, not in a tab. -->
+
+    </form><!-- end #cfg-form -->
+
+    <!-- ── Schedule (own CRUD forms, outside cfg-form) ── -->
+    <section id="schedule" class="section">
+      <div class="section-title">Schedule</div>
+      <a href="schedule/new">
+        <button class="btn btn-sm btn-green" type="button">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add Event
+        </button>
+      </a>
+
+      {{SCHEDULE}}
+    </section>
+
+  </main>
+</div>
+
+<script>
+// ── Section navigation ──────────────────────────────────
+let activeSection = '{{SECTION}}' || 'dashboard';
+if (!activeSection) activeSection = 'dashboard';
+
+function show(id) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  const sec = document.getElementById(id);
+  if (sec) sec.classList.add('active');
+  const nav = document.querySelector(`.nav-item[data-section="${id}"]`);
+  if (nav) nav.classList.add('active');
+  document.getElementById('form-section').value = id;
+  activeSection = id;
+}
+
+// The section buttons are <button> in the title bar now, not anchors in a
+// sidebar. `preventDefault` stays: they are `type="button"` and sit inside no
+// form, but the identity block is clickable too and a stray submit here would
+// post the whole configuration.
+document.querySelectorAll('[data-section]').forEach(a => {
+  a.addEventListener('click', e => {
+    e.preventDefault();
+    show(a.dataset.section);
+  });
+});
+
+show(activeSection);
+
+// ── Appearance ───────────────────────────────────────────
+// The attribute was already set by the inline script in <head>; this only
+// keeps the control showing what is in force and writes a change back.
+const themeSel = document.getElementById('theme');
+try {
+  themeSel.value = localStorage.getItem('aura.theme') || '';
+} catch (e) { /* storage unavailable; the control reads as Browser Default */ }
+
+themeSel.addEventListener('change', () => {
+  const chosen = themeSel.value;
+  if (chosen === 'light' || chosen === 'dark') {
+    document.documentElement.setAttribute('data-theme', chosen);
+  } else {
+    // Removed rather than emptied: absent is what "follow the browser" means
+    // to the stylesheet, and an empty attribute would work only by accident.
+    document.documentElement.removeAttribute('data-theme');
+  }
+  try {
+    if (chosen) localStorage.setItem('aura.theme', chosen);
+    else localStorage.removeItem('aura.theme');
+  } catch (e) {
+    // The page still changed; only remembering it failed. Saying nothing is
+    // right — a person who cannot store a preference cannot act on being told.
+  }
+});
+
+// ── The actions menu ─────────────────────────────────────
+const moreBtn  = document.getElementById('more-btn');
+const moreMenu = document.getElementById('more-menu');
+
+function closeMenu() {
+  moreMenu.hidden = true;
+  moreBtn.setAttribute('aria-expanded', 'false');
+}
+
+moreBtn.addEventListener('click', e => {
+  e.stopPropagation();
+  const open = moreMenu.hidden;
+  moreMenu.hidden = !open;
+  moreBtn.setAttribute('aria-expanded', String(open));
+});
+
+// Anywhere else, and Escape. A menu that only closes by its own button is one
+// a person leaves open by accident and then clicks through.
+document.addEventListener('click', e => {
+  if (!moreMenu.hidden && !moreMenu.contains(e.target)) closeMenu();
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeMenu();
+});
+
+// ── Restore ──────────────────────────────────────────────
+const restoreBtn  = document.getElementById('restore-btn');
+const restoreFile = document.getElementById('restore-file');
+
+restoreBtn.addEventListener('click', () => restoreFile.click());
+
+restoreFile.addEventListener('change', async () => {
+  const file = restoreFile.files && restoreFile.files[0];
+  if (!file) return;
+  // **Asked before anything is sent.** A restore replaces every setting on
+  // this machine, and the file was chosen from a picker where one name looks
+  // much like another.
+  if (!confirm(`Restore every Aura setting on this machine from ${file.name}?\n\nWhat is here now is replaced.`)) {
+    restoreFile.value = '';
+    return;
+  }
+  // The file's bytes ARE the body. The server parses one JSON document, so
+  // there is no multipart envelope to build and none to parse.
+  const text = await file.text();
+  try {
+    const answer = await fetch('restore', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: text,
+    });
+    const said = (await answer.text()).trim();
+    if (answer.ok) {
+      // Reloaded rather than patched: the page was rendered from the
+      // configuration that has just been replaced, and every field on it is
+      // now stale.
+      location.href = './?flash=saved&section=' + encodeURIComponent(activeSection);
+    } else {
+      alert('Restore refused — nothing was changed.\n\n' + said);
+    }
+  } catch (e) {
+    alert('Restore could not be sent.\n\n' + e);
+  }
+  restoreFile.value = '';
+});
+
+// ── Screensaver themes, from the pack's own catalogue ────
+//
+// This was a literal naming three backgrounds and their themes — a fifth copy
+// of a table that also lived in two Rust files and the renderer. T7 made the
+// installed pack the one place any of it is written down, and the server
+// renders this from what the pack described. `{}` on a machine with no pack.
+const ssThemes = {{SCREENSAVER_THEMES_JSON}};
+function updateTheme() {
+  const ssEl = document.getElementById('screensaver');
+  if (!ssEl) return;              // no pack installed: no picker on the page
+  const sel = document.getElementById('screensaver_theme');
+  const opts = ssThemes[ssEl.value] || [];
+  document.getElementById('theme-field').style.display = opts.length ? '' : 'none';
+  if (!opts.length) return;
+  const cur = sel.dataset.current || '';
+  // A theme that belongs to a different background cannot stay selected when
+  // the background changes, so fall back to that background's first.
+  const keep = opts.some(o => o.v === cur) ? cur : (opts[0] && opts[0].v);
+  sel.innerHTML = opts.map(o =>
+    `<option value="${o.v}"${o.v===keep?' selected':''}>${o.l}</option>`
+  ).join('');
+  sel.dataset.current = sel.value;
+}
+updateTheme();
+
+// ── The TempMon name field, shown only when one is needed ──
+//
+// R-219: `field-verify_as` is server-rendered `display:none` already when
+// the URL this page loaded with needs no name — see the comment above the
+// indoor section's hint paragraph. This keeps that in sync live as somebody
+// edits the URL field, the same way `updateTheme()` above keeps the theme
+// picker in sync with the background picker: called once now, and again on
+// every `input` on the URL field.
+//
+// This is read-only about the URL's TEXT and never asks anything — no
+// fetch, no resolution — because the two facts it needs are exactly the two
+// `crate::config::url_is_loopback` and `crate::config::url_is_plain_http`
+// decide from the text alone, combined the same way
+// `crate::config::tempmon_name_is_asked` combines them.
+function tempmonUrlIsLoopback(url) {
+  const afterScheme = url.includes('://') ? url.split('://')[1] : url;
+  let authorityEnd = afterScheme.length;
+  for (const mark of ['/', '?', '#']) {
+    const at = afterScheme.indexOf(mark);
+    if (at !== -1 && at < authorityEnd) authorityEnd = at;
+  }
+  const authority = afterScheme.slice(0, authorityEnd);
+  let host;
+  if (authority.startsWith('[')) {
+    host = authority.slice(1).split(']')[0];        // `[::1]` or `[::1]:8081`
+  } else {
+    const colon = authority.lastIndexOf(':');
+    host = (colon !== -1 && /^\d+$/.test(authority.slice(colon + 1)))
+      ? authority.slice(0, colon)
+      : authority;
+  }
+  host = host.toLowerCase();
+  if (host === 'localhost' || host === '::1') return true;
+  if (host.startsWith('127.')) {
+    const rest = host.slice(4).split('.');
+    return rest.length === 3 && rest.every(part => /^\d{1,3}$/.test(part) && Number(part) <= 255);
+  }
+  return false;
+}
+function tempmonUrlIsPlainHttp(url) {
+  return url.slice(0, 7).toLowerCase() === 'http://';
+}
+function tempmonNameIsAsked(url) {
+  return !tempmonUrlIsPlainHttp(url) && !tempmonUrlIsLoopback(url);
+}
+function syncTempmonNameField() {
+  const urlField = document.getElementById('field-url');
+  const nameField = document.getElementById('field-verify_as');
+  if (!urlField || !nameField) return;   // no indoor addon installed at all
+  const wrap = nameField.closest('.field') || nameField;
+  wrap.style.display = tempmonNameIsAsked(urlField.value) ? '' : 'none';
+}
+const tempmonUrlField = document.getElementById('field-url');
+if (tempmonUrlField) tempmonUrlField.addEventListener('input', syncTempmonNameField);
+syncTempmonNameField();
+
+</script>
+</body>
+</html>

@@ -1,0 +1,243 @@
+[workspace]
+resolver = "3"
+members = [
+    "rivet-core",
+    # **What a Rivet hands an APPLICATION, for the application's side.**
+    # `ADR-036`. Its `[dependencies]` table is empty on purpose — an
+    # application is a foreign program and must not link the operating system —
+    # and `rivetos-core` is a dev-dependency solely so `tests/agreement.rs` can
+    # prove the re-declared constants and the record encoding still match.
+    "rivet-sdk",
+    # **What a host application and an addon say to each other** —
+    # `PLAN-Feature-Set-2026-09-12` §6.3, `.rulings/` R-196 through R-198.
+    # Beside `rivet-sdk` and for the same reason: both halves are foreign
+    # programs, so this crate links no Rivet crate either. `ADR-053` decides
+    # which library joins which application; this is the crossing afterwards.
+    "rivet-addon",
+    "rivet-render",
+    "rivet-register",
+    # The fleet repository's text half — ADR-052 §9 step 2. A library because
+    # two workstation composition roots write into it: `cmd/rivet-provision`
+    # (a machine's document) and `cmd/rivet-fleet` (the register's
+    # projection). `rivet-fleet-repo/Cargo.toml` says why this is not folded
+    # onto `cmd/cargo-rivet/src/fleet.rs`, which built step 1.
+    "rivet-fleet-repo",
+    # The refuse-or-replace, named-and-sized backup copy engine — hoisted
+    # out of `cmd/rivet-provision/src/backup.rs` at its third consumer.
+    # `rivet-filecopy/Cargo.toml` says why it is not `rivet-core` (I/O) and
+    # not `rivet-fleet-repo` (a different, unrelated job).
+    "rivet-filecopy",
+    "rivet-config",
+    # The human's tool: compose a provisioning document, validate it against the
+    # same schema the board refuses with, and write a card.
+    "cmd/rivet-provision",
+    # The other end of a fleet's life: SPEC-05 §2's reset, which returns a
+    # workstation to the state a first-ever run would find. A separate binary
+    # from the one that mints, deliberately — see its own manifest.
+    "cmd/rivet-reset",
+    # The fleet server: ADR-034's Remote mode, as an ordinary application.
+    "cmd/rivet-fleetd",
+    "rivet-store",
+    "rivet-adapter-net",
+    "rivet-adapter-image",
+    "rivet-adapter-system",
+    # **The HDMI-CEC adapter** - ADR-039 §8.2, created 2026-09-02 under
+    # ADR-014 §5's rule that adapters arrive when the stage that needs them
+    # does. It is the transport for the machine's display hours: a lease makes
+    # the panel unreachable while an application draws, and /dev/cecN is not in
+    # the lease.
+    "rivet-adapter-cec",
+    "rivet-crypto",
+    # **The proxy's WebAuthn relying party** — `ADR-063` §4, `.rulings/`
+    # R-230. A supporting crate like `rivet-crypto`: pure checks over what a
+    # browser sent, no I/O, so every refusal is tested without a socket.
+    "rivet-webauthn",
+    # **A fleet-root mode fleet's root, minted on its fleet server** —
+    # `ADR-063` §4.2, `.rulings/` R-228. No I/O; `cmd/rivet-initd` mints with
+    # it on first boot. Its manifest says why minting reaches a card.
+    "rivet-fleet-root",
+    # TLS with pinned Ed25519 keys. ADR-035 §7.2, ADR-025 §2. Its own crate
+    # rather than part of rivet-core because BOTH sides need the same pinning
+    # logic -- the card's rivet-mcpd and the host's cargo-rivet -- and putting
+    # rustls in rivet-core would put it in every binary on the card.
+    "rivet-tls",
+    # Reaching a running Rivet from a HOST — push, check, install, edit. A
+    # library because two composition roots perform it: `cargo rivet deploy`
+    # and `rivet-fleet`. `ADR-034` §11.5.
+    "rivet-remote",
+    # The mDNS CLIENT — one-shot `.local` resolution, the query counterpart to
+    # `cmd/rivet-mdnsd`'s responder. Both `rivet-remote` and `cmd/rivet-fleetd`
+    # link it so the `.local` lookup that lets a DHCP member be dialled by name
+    # has one home and cannot drift (`ADR-011`).
+    "rivet-mdns",
+    "cmd/rivet",
+    "cmd/rivet-initd",
+    "cmd/rivet-splash",
+    # The program udhcpc execs when a lease changes. Its own binary and not
+    # part of rivet-netd because udhcpc execs its script ONCE PER EVENT, and
+    # netd is long-lived and owns the netlink socket -- ADR-004, ADR-011.
+    "cmd/rivet-dhcp-hook",
+    "cmd/rivet-sysd",
+    # **The kiosk launcher, and it works.** Corrected 2026-09-01: this comment
+    # said "A SKELETON … compiles, refuses to run" until the launcher had held
+    # the screen on hardware for a week. It holds DRM master for the life of the
+    # machine, rasterises Geist at runtime, draws cards, navigates off an Xbox
+    # pad and starts applications — all watched on the board, `PLAN.md`
+    # §104.45.1. `docs/design-candidates/rivet-launcher.md` is the DRAFT it grew
+    # from and is now BEHIND the code; read §104.34-§104.44 instead.
+    #
+    # **Still true, and the only part that was:** nothing in the image starts
+    # it. Whether a fresh card ships with it enabled is the maintainer's —
+    # `PLAN.md` §104.45.4.
+    "cmd/rivet-launcher",
+    "cmd/rivet-image",
+    "cmd/rivet-netd",
+    "cmd/rivet-timed",
+    # The restricted login shell for a git account. ADR-032 §4.2, PLAN.md §46.
+    # SMB file sharing. PLAN.md §23.5 surveyed it, §57 measured it, §69 is
+    # the first binary. Rivet implements no protocol here.
+    "cmd/rivet-smbd",
+    # The MCP control plane's listener. ADR-035 phase 1. A TRANSPORT: it hands
+    # a caller the stdin and stdout of `rivet mcp` and speaks no JSON-RPC of
+    # its own.
+    "cmd/rivet-mcpd",
+    # The mDNS responder, PLAN.md §23. Starts disabled: a machine that cannot
+    # announce itself is still reachable by address, so it is useful rather
+    # than bootstrap (ADR-017 §6.2).
+    "cmd/rivet-mdnsd",
+    # The name service, ADR-047: the fleet's home.arpa names from a static
+    # table, everything else forwarded upstream. Starts disabled.
+    "cmd/rivet-dnsd",
+    "cmd/rivet-proxyd",
+    # **The BLE observer, and the arbiter of the one adapter.** `ADR-041`,
+    # ruled 2026-09-05 (`.rulings/` R-144). Tier 1 only: it reads
+    # advertisements and does nothing else. An HCI user channel is exclusive,
+    # so the platform holds it and hands applications a line per advertisement
+    # over `provides`/`connects` — the same shape `rivet-launcher` has for the
+    # display. No BlueZ, no D-Bus, and no vendor decoding anywhere in it.
+    "cmd/rivet-bluetoothd",
+    # The installer. Its own supervised binary, the maintainer's 2026-08-24 ruling.
+    "cmd/rivet-deploy",
+    # A HOST tool and the only one that holds a signing key. `ADR-015` §3.2.
+    "cmd/cargo-rivet",
+    # The fleet register. A HOST tool, an Ignition application, and the only
+    # binary here with third-party dependencies that never reach a card.
+    # `ADR-034` §10.3, §11.2.
+    "cmd/rivet-fleet",
+    # The editor `ADR-005` §5.5 ruled into the base image. **No `rivet-`
+    # prefix**, deliberately: the prefix means Rivet's own machinery, and this
+    # is a general tool that ships on the card exactly as `nu` does. See its
+    # `src/main.rs` for the name and for why it was written rather than
+    # imported.
+    "cmd/femto",
+    # **Aura's card vocabulary** — `SPEC-04`. An APPLICATION's wire format, not
+    # the operating system's, which is why it is under `examples/` and why it
+    # does not take the `rivetos-` package prefix (`cmd/femto` made the same
+    # argument for the same reason).
+    #
+    # It is a workspace member anyway, and deliberately, unlike everything else
+    # in `examples/`: those are standalone workspaces because they are built by
+    # `cargo rivet package` for a board, and this is a pure library with no
+    # dependencies that both sides of a contract have to agree on. Being a
+    # member means `cargo test --workspace` runs its tests, which is the whole
+    # guard on the format.
+    "examples/aura/aura-card",
+]
+
+# **Vendored foreign source, held to its own rules.** `vendor/ixr-smb-server` is
+# `ixr-smb-server` 0.5.1 plus this project's two signing fixes — ruled
+# 2026-09-04, `.rulings/` R-134, and `vendor/ixr-smb-server/VENDORING.md` is the
+# provenance. `cmd/rivet-smbd` depends on it by path.
+#
+# Excluded rather than made a member for two reasons that point the same way.
+# It declares its own `[workspace]`, so without this cargo refuses the tree
+# outright — *"multiple workspace roots"*. And it is code this project did not
+# write: holding it to `[workspace.lints]` would produce hundreds of warnings
+# that say nothing about whether it is correct, and would push
+# `tools/lint-baseline` up by that much, which is how a ratchet stops meaning
+# anything.
+#
+# It is NOT untested by this. `tools/test-all.sh` walks nested workspaces, so
+# the crate's own suite runs on every full pass — which is the part of owning a
+# fork that matters.
+#
+# **`cmd/rivet-displayd` is excluded for a different reason, and a measured
+# one** — `ADR-058` §5.1, 2026-09-20. It is Rivet's own code and would be a
+# member if it could be. It cannot, because it links Mesa: `libgbm` is staged
+# **shared-only**, so the binary is dynamic, and `-C target-feature=-crt-static`
+# is a rustc codegen flag that no `build.rs` can emit. A per-crate
+# `.cargo/config.toml` is the only place to put it, and cargo ignores one in a
+# workspace MEMBER — while putting the flag in this file's would make **every**
+# Rivet binary dynamic, which is exactly what `ADR-003` §5 exists to prevent.
+#
+# `cmd/rivet-launcher/build.rs` is the same problem with a different answer and
+# says so: it links `libdrm.a`, which Buildroot stages, so a `build.rs` emitting
+# one link directive was enough and the launcher stays a member and stays
+# static. Mesa offers no archive, so that door is shut here.
+#
+# `examples/probes/gpu-flip` and `mesa-demo` already carry this recipe for the
+# same reason; this is the third copy and the first that ships.
+#
+# **It is NOT untested by this.** `tools/test-all.sh` walks nested workspaces,
+# so its suite runs on every full pass — and its `Cargo.toml` repeats the lint
+# table by hand, because `[workspace.lints]` cannot reach across the boundary.
+exclude = ["vendor/ixr-smb-server", "cmd/rivet-displayd"]
+
+# ADR-014 §2 lists the full destination layout. Only the crates a stage needs
+# are created — §5: "the layout is the destination, not a scaffolding
+# requirement before the first boot."
+
+[workspace.package]
+version = "0.1.137"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+authors = ["Joel Lindell"]
+repository = "https://github.com/caladil/Rivet"
+
+[workspace.lints.rust]
+unsafe_code = "warn" # cmd/rivet-initd overrides this; see its Cargo.toml
+
+[workspace.lints.clippy]
+unwrap_used = "warn"
+expect_used = "warn"
+panic = "warn"
+
+[profile.release]
+# PID 1 must never unwind out of main. ADR-017 §3.1.5.
+panic = "abort"
+
+# ~~strip = true~~ — REMOVED 2026-08-24, ADR-005 §7.5, ruled by the maintainer.
+#
+# `strip = true` stripped the only artifact cargo produces, so **nothing
+# retained a copy of what shipped with symbols in it** — and a board running a
+# released build could be attached to and gave `0x22d0d0 in ?? ()`. A debugger
+# that can tell you nothing is worse than the absence of one, because it costs
+# a card to find out.
+#
+# So cargo now keeps the symbols and `tools/card/build.sh` strips on the way
+# onto the image. **The card is unchanged**: ADR-018 §4's slots and §10's
+# distributed artifact are sized for stripped binaries and this must not grow
+# either, which is why the strip is in the recipe rather than optional.
+#
+# **Why not here, and why not in `cmd/rivet-image`.** Stripping an aarch64
+# ELF needs the cross toolchain — the host's GNU strip 2.47 answers *"Unable to
+# recognise the architecture of the input file"*, measured rather than assumed.
+# ADR-009 §6 keeps the toolchain on Buildroot's side of the line and has the
+# image builder take **finished binaries** as inputs, so teaching it to strip
+# would put a cross-toolchain dependency inside the one crate that is
+# deliberately ignorant of how its inputs were built. `tools/` is where that
+# knowledge already lives (see `tools/nushell/build.sh`).
+strip = false
+
+# Line tables and DWARF, so the retained copy is worth retaining. This is the
+# configuration ADR-005 §7.5 actually tested — release plus `debug = 2` gives
+# breakpoints, source lines and a stack walk to `main`, with every local
+# `<optimized out>` because the optimiser has been over it. That bound is
+# §7.5.1 and it is the honest one.
+#
+# It costs nothing on a card, because the recipe strips before the image is
+# assembled. It costs host disk, which is free.
+debug = 2
+
+lto = true
+codegen-units = 1

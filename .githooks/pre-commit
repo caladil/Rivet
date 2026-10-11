@@ -1,0 +1,60 @@
+#!/bin/sh
+# Keep the generated documentation index inside the commit that changes the
+# documentation. That is the whole job.
+#
+# WHAT THIS DELIBERATELY DOES NOT DO, and why
+# ===========================================
+# The first version of this hook ran `refresh.py`, which runs `index.py`,
+# `claims.py --check`, `rulings.py` and `prose.py --check`, and exited non-zero
+# when a check failed. Measured on 2026-09-07:
+#
+#     index.py            155 ms
+#     claims.py --check   14133 ms      <- 98% of the cost
+#     prose.py            248 ms
+#     rulings.py          277 ms
+#
+# So every commit -- including every commit the maintainer typed himself --
+# paid fourteen seconds to run a CHECKER, and could be REFUSED by it. That is
+# the wrong trade twice over: a guard that slow belongs in CI, where it already
+# runs, and a hook must never stand between a person and their own commit.
+#
+# This version runs `index.py` only, stages the two files it generates, and
+# **always exits 0**. The documentation stays current in the commit that
+# changed it, which was the point; the checking stays in CI, which is where a
+# fourteen-second check costs nobody anything.
+#
+# Enable per clone with:  git config core.hooksPath .githooks
+set -u
+
+# **The tree being committed, not the tree holding this file.** `core.hooksPath`
+# names one absolute directory, so a commit from a linked worktree runs this
+# file out of the main checkout. Finding the repository from the hook's own
+# location regenerated the MAIN checkout's index and staged it into the
+# worktree's commit, so every worktree commit carried a stale index. git runs a
+# hook at the top of the tree being committed and tells us which one it is.
+REPO=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+cd "$REPO" || exit 0
+
+# Nothing to do unless this commit touches something the index is built from.
+# Most commits do not, and then this hook costs a single `git diff`.
+staged=$(git diff --cached --name-only --diff-filter=ACMR)
+case "$staged" in
+    *docs/*|*AGENTS.md*|*README.md*|*STATE.md*) ;;
+    *) exit 0 ;;
+esac
+
+# `uv` is this project's only way to run Python -- `python`/`python3`/`pip` are
+# not on this maintainer's PATH at all -- so its absence is the normal state of
+# a shell that has not loaded it, not an error.
+command -v uv >/dev/null 2>&1 || {
+    echo "pre-commit: uv not on PATH, so docs/INDEX.md was not regenerated."
+    exit 0
+}
+
+if uv run tools/docs/index.py >/dev/null 2>&1; then
+    git add -- docs/INDEX.md docs/index.json 2>/dev/null
+else
+    echo "pre-commit: index.py failed; committing anyway. Run it by hand."
+fi
+
+exit 0

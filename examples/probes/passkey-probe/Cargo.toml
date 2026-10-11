@@ -1,0 +1,64 @@
+# **A PROBE: do browsers accept a passkey on a `.local` name?**
+#
+# `docs/design-candidates/Fleets-Are-the-Authority-2026-09-28.md` §5.3 proposes
+# passkeys (WebAuthn) as the browser login in both certificate modes. Fleet-root
+# mode serves `<host>.local` under a root the operator installed, and whether a
+# browser accepts that name as a passkey's relying party is not known from the
+# specification alone. This serves one page that tries, and journals what each
+# browser answered, so the answer is read off the board rather than recalled.
+#
+# **It verifies nothing on the server.** The question is whether the browser
+# lets a credential be created and used for this name at all; checking the
+# signature it returns would prove WebAuthn works, which nobody doubts.
+#
+# **It is also where "captured from a real browser" test vectors come from**
+# (`ADR-063` §4). Each successful ceremony journals a `capture`: the RP ID, the
+# challenge, and every byte a relying party verifies — `clientDataJSON` and the
+# attestation object for a create, `clientDataJSON`, authenticator data and the
+# signature for a get — in base64url. `rivet-webauthn`'s own vectors are the
+# W3C specification's and self-generated ones; a capture read off the board is
+# the third, and the only one a real authenticator wrote.
+[workspace]
+
+[package]
+name = "passkey-probe"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[package.metadata.rivet]
+kind     = "daemon"
+listen   = ["tcp:8093"]
+network  = "none"
+restart  = "on-failure"
+ready    = "listening"
+# Reached as `https://<host>.local/passkey/`, through `rivet-proxyd`'s
+# certificate — the fleet root — which is exactly the arrangement under test.
+proxy-path = "passkey"
+# **Public, deliberately.** The operator's client certificate is what passkeys
+# would replace; a probe that required one would be testing the old login and
+# the new one at once. The page stores nothing and changes nothing.
+proxy-auth = "none"
+library  = []
+# **`rivet-proxyd` reaches the applications behind it over TLS**, verifying each
+# as the machine's own name, so a backend serving plain HTTP is a connection the
+# proxy closes. The first build of this probe did exactly that. `fleet-tls` is
+# the machine's certificate and key, installed by `cargo rivet secrets`.
+material = ["fleet-tls"]
+
+[dependencies]
+rivetos-sdk = { path = "../../../rivet-sdk", features = ["serve"] }
+axum = { version = "0.8", default-features = false, features = ["http1", "json", "tokio"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "signal"] }
+serde_json = "1"
+# The TLS session and the HTTP connection over it, which `axum::serve` does not
+# do. Feature lists match `rivet-sdk`'s and `rivet-proxyd`'s, so one `rustls`.
+rustls = { version = "0.23", default-features = false, features = ["std", "ring"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring"] }
+hyper = { version = "1", features = ["server", "http1"] }
+hyper-util = { version = "0.1", features = ["tokio", "service"] }
+
+[profile.release]
+panic = "abort"
+strip = "symbols"

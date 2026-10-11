@@ -1,0 +1,47 @@
+# `greeter` is a C program, and this file is its Rivet metadata.
+#
+# **A Cargo.toml for something Cargo does not build** looks odd and is correct.
+# `cargo rivet package` reads three things from here — the name, the version and
+# `[package.metadata.rivet]` — and `--binary` tells it the program already
+# exists. `ADR-015` §3.1 rules that the *format* is language-agnostic and the
+# *tooling* is Rust-first; this is what that sentence looks like when a C
+# program uses it.
+#
+# `[workspace]` is empty and present for the reason `examples/probes/hello-rivet` has
+# one: without it Cargo walks up and refuses a crate that is not a member of the
+# repository's workspace.
+[workspace]
+
+[package]
+name = "greeter"
+version = "1.0.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[package.metadata.rivet]
+kind    = "daemon"
+restart = "always"
+ready   = "none"
+
+# **The declared closure.** Shared Rivets.
+#
+# This string is not a version constraint and not a name to resolve — it is a
+# digest of the exact artifact `examples/probes/libgreet/build.sh` emitted, so it names
+# bytes rather than a wish. Three consequences, and each is the design working:
+#
+#   * the installer refuses this application unless the machine holds exactly
+#     that library, and names it if it does not;
+#   * `rivet-sysd` points the loader at that directory and at nothing else;
+#   * rebuilding libgreet with a different version, or different source, or a
+#     different compiler produces a DIFFERENT reference — so this line stops
+#     matching, and `examples/probes/greeter/build.sh` says so rather than silently
+#     linking against one library and declaring another.
+#
+# It was copied from `cargo rivet library`'s own output. Nothing composes one by
+# hand.
+library = [
+    "libgreet-2.0.0-56939218889a356254166f6f095dc760f77e29c3b391879a70d2e0dd89cbadd8",
+]
+
+[dependencies]

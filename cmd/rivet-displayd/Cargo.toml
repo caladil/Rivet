@@ -1,0 +1,92 @@
+# **The program that owns the GPU and the screen** — `ADR-058` §4.1.
+#
+# It is in the class `rivet-initd` and `rivet-sysd` are in: it may not fail, so
+# it is written to `ADR-017` §3.1.5's standard — no unwinding out of `main`,
+# every failure an answer rather than a panic. The lints at the bottom are that
+# rule with teeth.
+
+# **Its own workspace root, and `.cargo/config.toml` beside this file is why.**
+# The repository root's `Cargo.toml` argues it at length under `exclude`: this
+# crate links Mesa, Mesa stages no static `libgbm`, and the flag that makes a
+# binary dynamic can only be set in a config cargo actually reads.
+[workspace]
+
+[package]
+name = "rivetos-displayd"
+version = "0.1.95"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+
+[[bin]]
+name = "rivet-displayd"
+path = "src/main.rs"
+
+[dependencies]
+# **The compositor, and it is NOT ours** — `ADR-058` §5.1, ruled 2026-09-20.
+#
+# `ADR-009`'s table makes an existing Rust crate the DEFAULT and writing one the
+# exception; ~600 lines of hand-rolled compositor were deleted for skipping that
+# test. `cosmic-comp` is built on Smithay, so adopting COSMIC later and adopting
+# Smithay now are one decision taken at two times.
+#
+# **`default-features = false` is load-bearing.** The default set drags in
+# libseat, libudev, libinput, winit, X11 and Vulkan — five C libraries and an
+# X server's worth of code, none of which a kiosk on a Pi needs. What is left
+# builds STATIC for `aarch64-unknown-linux-musl` against the Buildroot
+# toolchain, so `ADR-003` §5 needs no exception:
+#
+#   - `backend_drm`  — modeset and page-flip, the VC4 half
+#   - `backend_gbm`  — scanout buffer allocation
+#   - `backend_egl`  — the context, dlopened from `/usr/lib/gbm` at runtime
+#   - `renderer_gl`  — GLES2, which is what the V3D has
+#   - `wayland_frontend` — the protocol an application speaks to us
+#   - `desktop`      — free (`desktop = []`), and carries `Space`/`Window`
+#
+# **No `backend_session`.** A session manager arbitrates the DRM device between
+# a login screen and a user session. This machine has one program that ever
+# holds it, started by the supervisor, for the life of the board — so the
+# device is opened directly and there is no VT to switch away to. Adding
+# libseat would add a C dependency to answer a question Rivet does not ask.
+#
+# **No `backend_libinput` and no `backend_udev`.** This program reads no
+# input: `cmd/rivet-launcher` declares `devices = ["input"]` and reads the
+# evdev nodes itself, so the compositor opens no input path and enumerates no
+# bus.
+smithay = { version = "0.4.4", default-features = false, features = [
+    "backend_drm",
+    "backend_egl",
+    "backend_gbm",
+    "renderer_gl",
+    "wayland_frontend",
+    "desktop",
+] }
+
+# The machine's own vocabulary — the kiosk protocol and the journal's verbs.
+rivetos-core = { path = "../../rivet-core" }
+
+# **It is handed what it needs, like everything else.** `ADR-036` §5.4A binds
+# the launcher and it binds this too: the DRM device and the input nodes arrive
+# as descriptors, and a program that exempted itself would be the worst possible
+# advertisement for the rule.
+rivetos-sdk = { path = "../../rivet-sdk" }
+
+# For `dup`, `fcntl` and the descriptor arithmetic `LISTEN_FDS` is expressed in.
+libc = "0.2"
+
+# **The same table as `[workspace.lints]`, written out by hand**, because this
+# crate is outside that workspace and cannot inherit it. `ADR-011` says one
+# fact one owner and this is a second copy — which is the honest price of the
+# exclusion above, recorded rather than hidden.
+[lints.rust]
+# Taking a descriptor the supervisor handed over and calling it a DRM device is
+# an unsafe act by definition — `FromRawFd` has one invariant and it is on us.
+# Every `unsafe` block below names the invariant it relies on.
+unsafe_code = "allow"
+
+[lints.clippy]
+# `ADR-017` §3.1.5 for a program that may not fail. `deny`, not `warn`: the
+# launcher may panic and be restarted, and this may not.
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+indexing_slicing = "deny"

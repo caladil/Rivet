@@ -1,0 +1,36 @@
+# **The link recipe, in the crate rather than in an environment variable.**
+#
+# Taken from `examples/probes/mesa-demo/.cargo/config.toml`, whose comments carry the
+# argument for each flag — every one there was found by a linker error and none
+# is guessable. It lives here as well, and not in a `RUSTFLAGS` export, because
+# `cargo rivet package` runs its own `cargo build` and would know nothing about
+# a variable set for a different command. That failure is why mesa-demo has this
+# file, and copying the mistake would have been free.
+#
+# **The paths are the build container's.** `ADR-026` §7 makes the container the
+# Linux side of this project and `tools/container/exec.sh` mounts the Buildroot
+# tree at `/br`. This crate cannot be built anywhere else.
+#
+# **Why this crate is dynamic at all**, when `ADR-003` §5 makes every Rivet
+# binary static: `PLAN.md` §104.33.4. Writing to `/dev/fb0` loses a fight with
+# the system console, because `/dev/console` IS the framebuffer console on this
+# card. Taking DRM master is what suspends it, and the maintainer ruled the way
+# there: link `libdrm` rather than derive the ioctls (.rulings/ R-352).
+# `libdrm.so.2` is in `PUBLIC_LIBRARIES` since §104.26, so the platform supplies
+# it and this crate's closure stays empty.
+[target.aarch64-unknown-linux-musl]
+linker = "/br/host/bin/aarch64-linux-gcc"
+rustflags = [
+    # There is no static libdrm here, and a dumb-buffer modeset needs it.
+    "-C", "target-feature=-crt-static",
+    # Let GCC drive the link: rust-lld cannot find libgcc_s or libgcc, which
+    # live under lib/gcc/<tuple>/<version>/ — a path the cross GCC computes.
+    "-C", "link-self-contained=no",
+    # Where Buildroot stages the link-time libraries. The RUNTIME copies are in
+    # /lib on the card, put there by tools/card/build.sh's collect_libraries.
+    "-L", "/br/staging/usr/lib",
+    # The one library this program names. `--as-needed` is not used: it is
+    # referenced, so it would survive anyway, and saying so plainly is better
+    # than relying on a flag to keep it.
+    "-l", "drm",
+]

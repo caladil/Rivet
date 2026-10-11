@@ -1,0 +1,102 @@
+# **The probe that answers `ADR-047` §7 — a name service that has actually
+# served a query.**
+#
+# `ADR-047` accepts `hickory-server` with `resolver` on the strength of a study
+# that measured builds, dependency trees, licences and binary sizes and **ran
+# nothing**. §7 names the experiment that closes it: point the accepted
+# candidate at a static table, put it on a board, and drive it with a
+# well-formed lookup, a name the zone does not hold, an answer large enough to
+# truncate, and a deliberately malformed datagram.
+#
+# This crate is that experiment, and it is a probe rather than the service:
+# there is no configuration schema, no `rivet-config` key and no wall around
+# `hickory` types (`ADR-009` §4). Those are the real component's work and they
+# prove nothing about whether the dependency executes on a Cortex-A72, which is
+# the one thing §7 says is unproven.
+#
+# ## It is on 5354, not 53, DELIBERATELY
+#
+# `ADR-047` §2 keeps the name service off the development board, because a
+# machine that takes two A/B updates in a day is not the one a household's name
+# resolution lives on — when it stops, every device in the house loses DNS. That
+# rule is about the ROUTER ADVERTISING a resolver, not about a binary existing,
+# so the probe is safe
+# here **only for as long as nothing can stumble onto it**. A port no client
+# looks for is what makes that true: a query reaches this only when somebody
+# sends it here on purpose. Nothing advertises it — there is no `provides` and
+# no mDNS record — and it declares no `proxy-path`, so `rivet-proxyd` publishes
+# no route to it either.
+#
+# ## Outside the workspace, like every example
+#
+# The empty `[workspace]` table means `cargo build` at the repository root never
+# reaches this, and `examples/.gitignore` catches its `target/`.
+[workspace]
+
+[package]
+name = "dns-probe"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+# The keys, in `rivet_core::package::application::KEYS`' order, which is the
+# order `Manifest::parse` demands on the board.
+[package.metadata.rivet]
+kind    = "daemon"
+# **`on-failure`, so that a panic is visible as a restart and a stop stays
+# stopped.** `docs/design-candidates/DNS.md` §6 predicts that a panic inside the
+# dependency is a supervisor restart; with `panic = "abort"` below, that
+# prediction becomes something `get status`'s `restarts` counter can be read
+# for.
+restart = "on-failure"
+# **`none`, not `listening`.** UDP has no accept, so there is nothing for the
+# supervisor to observe a connection on.
+ready   = "none"
+# **The forwarder is why.** `ADR-047` §3 is that forwarding to Quad9 is the
+# entire justification for this dependency, and a forwarder calls out.
+network = "egress"
+# **Both, because `ADR-047` §3 says UDP alone is a dead end.** An answer too
+# large arrives with `TC` set and the client retries the same query over TCP to
+# the same resolver; a server bound only to UDP turns that retry into a dead end
+# and the symptom is one name failing while everything else works. Declaring
+# only `udp:5354` would have made the third of §7's four queries untestable.
+#
+# Written `udp:5354` here; it arrives named `udp-5354`, because `LISTEN_FDNAMES`
+# is colon-separated and `udp:5354` would reach the program as two names.
+listen  = ["udp:5354", "tcp:5354"]
+# Static, and everything it links is compiled in.
+library = []
+
+[dependencies]
+# **The accepted candidate, at the version the study measured** — `ADR-047` §4
+# and `docs/design-candidates/DNS.md` §5.2, both of which counted 0.26.2. The
+# `resolver` feature is the forwarder and is the half §3 says the dependency is
+# bought for.
+hickory-server = { version = "0.26", features = ["resolver"] }
+
+# `hickory-server` owns the process loop and it is a tokio one — which is
+# `ADR-009` §3.4's right-hand column, and the reason `ADR-047` is a decision
+# rather than a dependency choice. `rt` and `net` are what `Server` needs;
+# `macros` is `#[tokio::main]`.
+tokio = { version = "1", features = ["rt", "net", "macros"] }
+
+# **The SDK, for the handed sockets alone.** `ADR-047` §6: the supervisor binds
+# the UDP socket with `std::net::UdpSocket::bind` and sets no options, so the
+# handoff is `into_udp_socket` then `set_nonblocking(true)` then
+# `tokio::net::UdpSocket::from_std`. Omitting the middle call fails at run time
+# and not at compile time, which is exactly the kind of claim this probe exists
+# to settle by running.
+rivetos-sdk = { path = "../../../rivet-sdk" }
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+# **`abort`, chosen for the experiment rather than for production.** Under the
+# default unwind, a panic in a tokio task kills that task and leaves the server
+# running — which would hide precisely what `ADR-047` §7's fourth query is
+# asking about. Aborting turns a panic into a process exit the supervisor
+# records.
+panic = "abort"
+strip = true

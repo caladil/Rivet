@@ -1,0 +1,16 @@
+[package]
+name = "rivetos-render"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+# `ADR-014` §3's edge, in the permitted direction. This crate READS
+# `rivet_core::Value` and core knows nothing about it, which is the whole
+# reason §3 forbids `core → rivet-render`: rendering is an adapter concern
+# (`ADR-006` §4) and an operation must not be able to depend on how its result
+# will be printed.
+rivetos-core = { path = "../rivet-core" }
+
+[lints]
+workspace = true

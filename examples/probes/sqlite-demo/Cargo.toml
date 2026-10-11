@@ -1,0 +1,52 @@
+# **SQLite on a Rivet.** The application both cold agents of 2026-08-30 decided
+# could not exist.
+#
+# `docs/design-candidates/Shared-Libraries-and-the-Build-Target.md` §1: two
+# agents from different vendors, with no shared context, were each told to put a
+# database-backed application on a Rivet board. Both rejected SQLite. Both gave
+# the same reason, unprompted — there is no C cross-toolchain, so `rusqlite`
+# cannot compile `sqlite3.c` for the target.
+#
+# **They were wrong about the fact and right about the evidence.** A C cross
+# toolchain was already in this build environment and was never exposed to
+# anyone building an application. `tools/toolchain/env.sh` exposes it, and this
+# crate is what says the exposure works: `rusqlite` with `bundled`, which
+# compiles SQLite from source with the `cc` crate.
+#
+# It is deliberately a REAL database rather than a link test. §6.2's distinction
+# is the whole reason this example exists in the shape it does: compiling is not
+# working, and a library that compiles and then reaches for `/etc`, a shell or
+# an FHS path at run time would pass a build and fail on a board.
+[workspace]
+
+[package]
+name = "sqlite-demo"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[package.metadata.rivet]
+kind    = "daemon"
+restart = "always"
+ready   = "none"
+# **Empty, and that is the interesting part.** `bundled` STATICALLY links
+# SQLite: the C is compiled into the binary. Shared libraries were never what
+# this case needed — see §2 of the design, which is a table with exactly this
+# row in it.
+library = []
+
+[dependencies]
+rusqlite = { version = "0.32", features = ["bundled"] }
+
+# **The SDK, for `app::data()` alone** — register `R-33`, 2026-09-04.
+#
+# This example used to carry `const DATA_DIR: &str =
+# "/state/app/sqlite-demo/data"`, which is correct until the state volume moves
+# (`ADR-031`) and is precisely what `ADR-036` §3 rows 2–4 exist to stop an
+# application doing. A demo is documentation: one that hard-codes a path teaches
+# every reader to hard-code it.
+#
+# Default features only. `screen` and `draw` bring `libdrm` and a rasteriser,
+# and a database has no business with either.
+rivetos-sdk = { path = "../../../rivet-sdk" }

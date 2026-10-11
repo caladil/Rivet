@@ -1,0 +1,150 @@
+# **The provisioning tool** — the one command-line program meant for a PERSON.
+#
+# `Rivet-The-TUI-Is-Dead.md` (maintainer's scratchpad), ruled 2026-09-01. Everything else
+# in this workspace that a person could type at is either an agent's interface
+# (`rivet`, `cargo rivet`) or is being retired. This one is theirs.
+#
+# # Why it is not a TUI
+#
+# The fleet TUI is dead. This is a numbered menu on an ordinary terminal:
+# printed, read, answered by number. That is deliberate — a full-screen
+# application owns the terminal, has to redraw, and cannot be piped or read
+# back afterwards. A menu is a page of text that scrolls into history like
+# everything else.
+#
+# # Why it depends on `rivetos-config`
+#
+# The maintainer's ruling, and it is the whole point of the dependency: the
+# provisioning tool uses the same `rivet-core` as every other program, so that how
+# a document is created and what its options are is known to be correct, and
+# there are not two ways of editing the document that could drift apart
+# (.rulings/ R-338).
+#
+# `tools/card/provisioning.example.toml` says outright that nothing validates a
+# provisioning document at build time — *"the refusal comes from the board, on
+# first boot, which is the wrong end."* This crate is that end being made right.
+[package]
+name = "rivetos-provision"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Compose, validate and write a Rivet provisioning document. The human's tool."
+
+[[bin]]
+name = "rivet-provision"
+path = "src/main.rs"
+
+[dependencies]
+# **The one authority on what a document may say.** Not a second schema, not a
+# second validator — the same one `rivet-sysd` refuses with.
+rivetos-config = { path = "../../rivet-config" }
+rivetos-core = { path = "../../rivet-core" }
+
+# The refuse-or-replace, named-and-sized backup copy engine — `ca backup`/
+# `restore`'s own `copy_all`, hoisted to `rivet-filecopy` at its third
+# consumer (`cargo rivet key backup`/`restore`, `cargo rivet fleet objects
+# backup`/`restore`). `crate::backup` is now a thin re-export of it.
+rivetos-filecopy = { path = "../../rivet-filecopy" }
+
+# **Ignition** - the maintainer's standard CLI surface, logging and self-update.
+#
+# Every reason `cmd/rivet` gave for REJECTING Ignition is about a binary that
+# ships in the image: size, a second updater reachable from the login shell, and
+# no administrative operation to configure. **None of those binds a program on
+# somebody's laptop**, and self-update is a feature there rather than a hazard -
+# a provisioning tool that can bring itself current is one that will be.
+#
+# `ADR-036` ruling 3 - *"Ignition is not a Rivet dependency"* - is about what an
+# APPLICATION links. This does not run on a Rivet.
+ignition = { git = "https://github.com/caladil/Ignition", tag = "v0.3.0" }
+
+# **Minting.** `cmd/cargo-rivet` already carries this at the same version and
+# for the same reason: ADR-025 5.3 puts generation in the fleet tool, and
+# `rivet-tls` deliberately never mints so that rcgen -- and the `time` crate it
+# drags in -- stay out of every binary on the card.
+#
+# This tool is the fleet tool now.
+rcgen = { version = "0.14", default-features = false, features = ["ring", "pem", "x509-parser"] }
+p12 = "0.6"
+
+# **To read an authority's name constraint back OUT of its own certificate.**
+#
+# `rcgen` mints and does not read: its `NameConstraints::from_x509` is
+# `#[cfg(test)]`, so the crate that wrote the extension cannot tell you what it
+# says. Without this, the only record of what an authority permits is the
+# `suffix` note beside it — a SECOND spelling of a fact the certificate already
+# carries, which is what `ADR-011` §3 forbids, and one that a repair prompt can
+# silently write wrong.
+#
+# **This adds no crate to the dependency graph.** `rcgen`'s `x509-parser`
+# feature above already pulls the same version; naming it here only makes a
+# dependency that was transitive into a declared one.
+x509-parser = "0.18"
+
+# **The staging bundle's register half** - `ADR-049`, and it is here for
+# `ADR-011` rather than for convenience. `cmd/rivet-fleetd` reads the register
+# it is handed with `rivetos_register::store::load`; a second, hand-written
+# spelling of that layout in this crate would be a file whose unreadability
+# reports NOTHING, because that loader treats a missing directory as an empty
+# register by design. The crate that defines the format is the one that renders
+# it.
+rivetos-register = { path = "../../rivet-register" }
+
+# **The fleet repository's text half** — `ADR-052` §9 step 2. `write_document`
+# calls `record_document` after it writes the composed document to
+# `~/.rivet/provision/` — additive, and best-effort: this crate's own
+# `Outcome::Refused` is never turned into a failure of the write that already
+# succeeded (see `rivet-fleet-repo`'s module doc for the whole argument).
+rivetos-fleet-repo = { path = "../../rivet-fleet-repo" }
+
+# **To read a public key out of a certificate, and to write one as hex.**
+#
+# Was a dev-dependency until 2026-09-07. `ADR-049` needs three things from it in
+# the shipped binary: the machine's own control-plane pin, read out of the
+# `device.crt` on the card so a register record can carry it; the public half of
+# the operator credential this tool now mints for `rivet-fleetd`; and the hex
+# encoding both are written in. `rivetos-tls` is the one authority for all three
+# — `public_key_in_certificate` reads THE SAME FIELD rustls verifies, which its
+# own documentation records as a security property rather than a convenience.
+#
+# It adds no crate to the graph: `rustls` is already here for the tests and
+# `rcgen` for the minting.
+rivetos-tls = { path = "../../rivet-tls" }
+
+# **To list published application versions, by reading `manifest.toml`
+# directly** — `R-178` P3: the interview offers what a role's card must carry,
+# newest preselected, and it is the THIRD reader of this file
+# (`cmd/cargo-rivet/src/fleet.rs` and `cmd/rivet-image/src/fleet_payloads.rs`
+# are the other two). Neither of those crates has a `[lib]` target this one
+# could depend on instead (see `rivet-fleet-repo`'s own header for the
+# identical trade, taken for the same file's text half), so this reads the
+# same three fields a third time rather than inventing a fourth format.
+#
+# `default-features = false` with `parse` alone — `cmd/cargo-rivet`'s own
+# reasoning: nothing here writes TOML, so there is nothing to pull `serde` or
+# a writer in for.
+toml_edit = { version = "0.25.13", default-features = false, features = ["parse"] }
+
+# **Only the tests link a TLS stack, and they link the one that will judge
+# these certificates.**
+#
+# This program mints and never verifies, so `rustls` has no business in the
+# binary. But the question its tests have to answer is not *did rcgen accept
+# these parameters* — it is *will `rivet-proxyd` admit the certificate this
+# minted*, and the only honest way to ask that is to build the same
+# `WebPkiClientVerifier` the proxy builds and hand it the same chain.
+#
+# Same versions as `rivet-tls` and `cmd/rivet-proxyd`, so there is one rustls
+# in the workspace and the verifier under test is the deployed one.
+[dev-dependencies]
+rustls = { version = "0.23", default-features = false, features = ["std", "ring"] }
+rustls-pki-types = "1"
+
+# **To read a subject back out of what was minted** — the same parser the proxy
+# uses to render *"Authenticated as: …"*, so a test asserting the name is
+# asserting what a person will actually see rather than a second reading of it.
+# `rivetos-tls` moved UP into [dependencies] on 2026-09-07 with `ADR-049`; the
+# tests get it from there and the line that was here is gone rather than
+# duplicated.

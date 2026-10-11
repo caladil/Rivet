@@ -1,0 +1,92 @@
+# A first-boot provisioning document. COPY THIS, EDIT THE COPY, DO NOT COMMIT IT.
+#
+# `ADR-004` §6: PID 1 mounts the boot partition read-only, reads `rivet.toml`,
+# and applies it. `tools/card/build.sh` writes yours onto both boot partitions
+# when RIVET_DOCUMENT names it:
+#
+#     RIVET_DOCUMENT=~/my-board.toml RIVET_DESCRIBE=$(git describe --tags --always --dirty) \
+#         tools/card/build.sh
+#
+# Every value below is a placeholder. A real one carries a public key and an
+# address, which is why this file is the *example* and yours lives outside the
+# repository (`AGENTS.md` §8.3 — the rule binds history, not just the tree).
+#
+# ## Without this document, the card boots and nothing can reach it
+#
+# No `[network]` table means no address. A machine that takes no address is
+# still reachable over the control plane if something else gave it one, and is
+# not reachable at all if nothing did
+# you can only reach with a keyboard and an HDMI cable.
+#
+# ## Unknown keys are REFUSED, not ignored
+#
+# `ADR-007` §3.6.5. A misspelling is reported rather than silently doing
+# nothing — so `authorised_keys` is an error, and that is the point.
+#
+# ## `cmd/rivet-image` does not validate this
+#
+# It does not depend on `rivet-config`, so nothing IN THE IMAGE BUILD can say
+# whether these bytes parse.
+#
+# **`rivet-provision` is the answer to that**, added 2026-09-01: it composes a
+# document against the same `rivet-config` the board refuses with, so a
+# misspelling is caught where it was typed rather than on first boot. Writing
+# this file by hand still works and still gets its refusal from the board —
+# which remains the wrong end, and is now a choice rather than the only option.
+#
+# `tools/qemu/run.sh --document <yours>` also still checks it.
+
+# The schema version this document is written against. Required.
+version = 1
+
+# ---------------------------------------------------------------------------
+# The network
+# ---------------------------------------------------------------------------
+#
+# ~~**`static` is the only method that works.** `ADR-004` §8's DHCP client is
+# not built, and `rivet-config` refuses `method = "dhcp"` at parse time.~~
+# **STRUCK 2026-09-01 — both halves are false now.** `cmd/rivet-dhcp-hook` is
+# built, `udhcpc` is on the card, and `rivet-config` accepts `method = "dhcp"`.
+# Checked rather than assumed: the parser was handed the document and took it.
+#
+# **`dhcp` and `static` are both available.** Which you want depends on what
+# the machine is for:
+#
+# * **`dhcp`** — fine for a node. It asks the network and takes what it is
+#   given.
+# * **`static`** — what a FLEET SERVER wants, because its address ends up in a
+#   certificate and in a browser's address bar, and a lease that moves breaks
+#   both. Pick an address OUTSIDE your router's DHCP pool.
+#
+# Under `dhcp`, `address` and `gateway` are REFUSED rather than ignored — a
+# document that asks for both is asking for two different things.
+#
+# `eth0` is the Raspberry Pi 4's `bcmgenet`. Confirmed on hardware 2026-08-23:
+# the board brought the interface up over netlink, assigned the address and
+# installed the default route, all from a document handed to it on FAT.
+#
+# The router will otherwise lease this to something else eventually, and you
+# will have two machines arguing about it.
+
+[network.eth0]
+method  = "static"
+address = "192.168.1.50/24"
+gateway = "192.168.1.1"
+
+# A Rivet is administered over the control plane -- MCP over TLS on port 7777,
+# `ADR-035` -- and there is no table here that opens any other way in. A
+# document naming one is INVALID CONFIGURATION and the parser says so by name,
+# with the reason: `ADR-007` §3.6 forbids accepting an input the system will
+# discard.
+
+# ---------------------------------------------------------------------------
+# What else could go here
+# ---------------------------------------------------------------------------
+#
+# `[services.<name>]` takes `enabled` and `memory` — the operator's half of
+# `ADR-015` §3.2.1's split, where the manifest owns what an application *is* and
+# the document owns what the operator *limits*. `rivet-mcpd` and `rivet-timed`
+# both start enabled, so nothing here is needed to reach the machine.
+#
+# There is no `[users]` table yet (`ADR-008` §7.3, Stage 4) and no timezone key
+# (`ADR-021`). Both are named absences rather than omissions.

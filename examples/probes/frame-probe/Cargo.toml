@@ -1,0 +1,57 @@
+# **The frame boundary's pack half** — a shared rivet that answers the addon
+# protocol's DRAWING entry, so that a `#[repr(C)]` descriptor crossing between
+# two separately compiled builds can be PROVEN rather than argued
+# (`.rulings/` R-199 D2, `PLAN-Addon-Feature-Set-2026-09-19` T3).
+#
+# `examples/probes/addon-probe` is its sibling and its model: that one proves
+# the JSON half — a version handshake, state between calls, a cadence the addon
+# chose, a panic turned into an answer — and this one proves the half that
+# hands over a pointer to the host's own surface.
+#
+# **It draws nothing anybody would want to look at, deliberately.** The article
+# is *did the bytes arrive where the descriptor said they would*, and a known
+# pattern a host can recompute exactly is what answers it. A pretty background
+# would answer it worse.
+[workspace]
+
+[package]
+name = "frame-probe"
+version = "1.0.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+# **`cdylib`, and cargo cannot name the file the loader will be asked for** —
+# `examples/probes/addon-probe/Cargo.toml` has the whole account. A library
+# target name is a Rust identifier and a class is a manifest token, and those
+# two alphabets do not agree, so cargo emits `libprobe_background.so`,
+# `build.rs` stamps the real `DT_SONAME`, and the packaging step writes it out
+# under the name a host asks for.
+[lib]
+name = "probe_background"
+crate-type = ["cdylib"]
+
+[package.metadata.rivet]
+kind = "library"
+# **A class of its own, beside the two `probe-source` libraries already on the
+# test board.** Those two are standing evidence of the two-of-one-class
+# refusal and must be left exactly as they are, so this pack takes a class
+# nothing else claims rather than adding a third to theirs.
+provides-class = "probe-background"
+soname = "libprobe-background.so.1"
+
+[dependencies]
+rivetos-addon = { path = "../../../rivet-addon" }
+serde_json = "1"
+
+[profile.release]
+# **`opt-level = 3`, where `addon-probe` uses 2.** This pack is the subject of
+# a MEASUREMENT — the per-frame cost of the crossing against `SPEC-04` §10's
+# board numbers — and those numbers come from a renderer built for speed.
+# Measuring a debug-ish build and reporting it beside them would be comparing
+# two different things and calling the difference the boundary's.
+opt-level = 3
+# **Not `abort`.** The boundary catches an unwinding panic and answers with a
+# code; `panic = "abort"` would take the renderer down instead, and the
+# renderer is the process holding the display.
+panic = "unwind"

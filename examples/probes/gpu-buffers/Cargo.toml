@@ -1,0 +1,47 @@
+# **The probe that drives Mesa's GBM buffer trim and reallocation on purpose.**
+#
+# Mesa destroys a surface's spare buffer object after a thousand frames with
+# more free than it needed, and allocates a new one when the compositor next
+# holds every buffer it has. `rivet_sdk::gpu` gives each object a `wl_buffer`,
+# and what happens to that `wl_buffer` when its object is destroyed is the
+# question: kept, it holds the object's dma-buf in the compositor for the life
+# of the client. On a kiosk drawing steadily the cycle comes round about once a
+# day; this makes it come round every minute, through the SDK an application
+# actually uses.
+#
+# Its own workspace, like every other example, because `cargo rivet package`
+# builds it for a board and the root workspace is the operating system's.
+[workspace]
+
+[package]
+name = "gpu-buffers"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[package.metadata.rivet]
+kind    = "daemon"
+restart = "never"
+ready   = "none"
+
+# A render node and a surface, exactly `gpu-surface`'s grants: no card node, no
+# modeset. Its window is mapped over whatever is on the screen while it runs.
+devices = ["gpu"]
+connects = ["rivet-displayd:wayland"]
+
+# `libEGL`, `libGLESv2` and `libgbm` are in
+# `rivet_core::package::library::PUBLIC_LIBRARIES`, so the closure is empty
+# even though this binary is dynamic.
+library = []
+
+network = "none"
+
+[dependencies]
+# **The SDK's path and not a copy of it**, because the SDK's handling of a
+# destroyed buffer object is what is under test.
+rivetos-sdk = { path = "../../../rivet-sdk", features = ["composited-gpu"] }
+
+[profile.release]
+opt-level = 3
+lto = true

@@ -1,0 +1,34 @@
+# **The cross linker. Without this file this crate builds HERE and not anywhere
+# else** — `ADR-040` §10, and `examples/aura/aura-controller/.cargo/config.toml`
+# carries the long form of the same argument.
+#
+# `.cargo/config.toml` is discovered by walking up the DIRECTORY tree, and
+# `cargo rivet package` runs its child build in the crate's own directory for
+# exactly that reason. Without this file, a crate under `examples/` picks up
+# the repository root's `linker = "rust-lld"`, which is right for the static
+# musl binaries the operating system is made of and wrong for anything dynamic.
+#
+# ## A `cdylib` for this target needs BOTH lines below
+#
+# Found on 2026-09-19 by `examples/probes/addon-probe`, and written down in
+# `docs/design-candidates/Addon-Call-Boundary-2026-09-19.md` §6 because no
+# document said it:
+#
+# * `-crt-static` off is what produces a shared object at all rather than a
+#   static archive's worth of relocations, and on the host side it is what
+#   gives a program an interpreter and a `dlopen` that is not a stub;
+# * **`rust-lld` cannot do the dynamic link.** It has no sysroot in which to
+#   resolve `libc.so`, and what it says is `unable to find library -lc`, which
+#   names neither the sysroot nor the flag. The Buildroot cross GCC drives the
+#   link instead, because it is the thing that knows where its own
+#   `lib/gcc/<tuple>/<version>/` is.
+#
+# **The paths are the build container's.** `ADR-026` §7 makes the container the
+# Linux side of this project and `tools/container/exec.sh` mounts the Buildroot
+# tree at `/br`.
+[target.aarch64-unknown-linux-musl]
+linker = "/br/host/bin/aarch64-linux-gcc"
+rustflags = [
+    "-C", "target-feature=-crt-static",
+    "-C", "link-self-contained=no",
+]

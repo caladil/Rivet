@@ -1,0 +1,56 @@
+# **The first article's addon half** — a shared rivet that answers the addon
+# protocol, so that `dlopen` from a Rust application can be PROVEN rather than
+# assumed (`docs/design-candidates/Addon-Call-Boundary-2026-09-19.md` §6).
+#
+# It measures nothing. It counts, which is enough to show that state survives
+# between calls, and it asks to be called again on a cadence it chooses — the
+# field the whole protocol is shaped around.
+#
+# `examples/probes/libgreet` is the precedent for a library probe and this is
+# deliberately its successor: `libgreet` proved a DECLARED closure resolved by
+# the loader at exec time, and this proves a CLASS-matched object opened at run
+# time, which is the half `SPEC-02` §8 says nothing supports yet.
+[workspace]
+
+[package]
+name = "addon-probe"
+version = "1.0.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+# **`cdylib`, and cargo CANNOT name the file the loader will be asked for.**
+#
+# A host asks for `libprobe-source.so.1` — `rivetos_addon::abi::
+# soname_for_class` of the class below — and cargo refuses a library target
+# with a hyphen in it, because a library target name is a Rust identifier:
+#
+#     library target names cannot contain hyphens: probe-source
+#
+# So cargo emits `libprobe_source.so`, `build.rs` stamps the real `DT_SONAME`
+# into it, and the packaging step writes it out under the name the loader
+# looks for. **This is not a workaround for this probe; it is what every addon
+# will do**, because a class is a manifest token and a crate name is an
+# identifier, and those two alphabets do not agree.
+[lib]
+name = "probe_source"
+crate-type = ["cdylib"]
+
+[package.metadata.rivet]
+kind = "library"
+# **The class, and it is the other half of `ADR-053`'s join.** An application
+# accepting `probe-source` is handed this object's directory on its
+# `LD_LIBRARY_PATH`; the name above is what it then asks the loader for.
+provides-class = "probe-source"
+soname = "libprobe-source.so.1"
+
+[dependencies]
+rivetos-addon = { path = "../../../rivet-addon" }
+serde_json = "1"
+
+[profile.release]
+opt-level = 2
+# **Not `abort`.** The protocol's rule 3 catches an unwinding panic at the
+# boundary and turns it into an answer; `panic = "abort"` would take the host
+# down instead, which is the exact failure the glue exists to prevent.
+panic = "unwind"

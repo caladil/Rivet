@@ -1,0 +1,25 @@
+# tools/qemu/adr-007-cpu-proof.sh's desired-state document.
+#
+# Two system-service slots, both substituted with the same binary
+# (tools/qemu/cpu-spin-probe) by the harness — see that script for why a
+# SYSTEM service and not a signed application:
+#
+# * `rivet-netd` is capped at half a core. It already starts `enabled` by
+#   image default (`ADR-023` §4.1's bootstrap set), so `enabled = true` here
+#   is not load-bearing — it is written anyway so the document reads complete
+#   on its own. It is netd's slot and not timed's because the probe has to
+#   read its own cgroup, and a homed service like timed is refused `/sys`.
+# * `rivet-mcpd` gets NO `cpu` key at all — the half of this proof that
+#   matters more: an application (or, here, a service) with nothing declared
+#   must be entirely unaffected, never falling back to an invented default.
+#   It is an unconfined uid-0 image service, enabled by image default; the
+#   uncapped half used `rivet-bluetoothd`'s slot until that service became
+#   homed and was refused `/sys` in turn.
+version = 1
+
+[services.rivet-netd]
+enabled = true
+cpu = "0.5"
+
+[services.rivet-mcpd]
+enabled = true

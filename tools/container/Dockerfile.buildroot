@@ -1,0 +1,83 @@
+# The container that builds Buildroot — the kernel, the musl cross toolchain,
+# and the C mechanisms of `ADR-009` §6.
+#
+# ## Why this is a second image rather than the card image grown
+#
+# `tools/container/Dockerfile` says what is deliberately not in it: *"Buildroot
+# … takes hours, and is a separate question. A prebuilt output tree is mounted
+# in at /br"*. That reasoning is still right and this file does not overturn it
+# — the card image stays free of Buildroot's host dependencies, so it does not
+# have to be rebuilt when the Buildroot pin moves, and this one does not carry
+# `sgdisk`, `mkfs.erofs` or a Rust toolchain it will never run.
+#
+# What changed on 2026-08-30 is only *where* Buildroot runs. It used to run on
+# a Linux host somebody had lying around, and the tree it produced was mounted
+# in. That tree is now gone — what survives is a 486 MB subset holding the
+# toolchain and `git`, with no BusyBox and no `wpa_supplicant` — so the next
+# build had to happen somewhere, and `ADR-026` says where: the container, on
+# whatever operating system the maintainer is sitting at.
+#
+# ## Buildroot will not run as root, and that is not a preference
+#
+# Buildroot's own `Makefile` refuses: building as root lets a package's install
+# step write outside its staging directory and damage the host. So this image
+# carries an ordinary user and the runner uses it. Every volume the build writes
+# is chowned to that uid at image build time, because a named Docker volume is
+# seeded from the image and inherits what it finds.
+#
+# ## Everything the build reads and writes lives in named volumes
+#
+# **Not a bind mount, and on Windows that is a correctness requirement rather
+# than a speed one.** A Buildroot output tree is full of symlinks, executable
+# bits and case-sensitive names; a Windows bind mount silently mangles all
+# three. `tools/container/build-card.sh` already learned this and says so under
+# RIVET_BR_VOLUME. The repository itself is still bind-mounted, because this
+# build only READS it — the defconfig, the two kernel fragments, and the
+# external-tree descriptor.
+
+FROM archlinux:base-20260823.0.578598@sha256:b860afd5823683f7ea389ba5f00d812f4fe55f6f286dea329d2abeefa535e309
+
+# The same archive snapshot the card image pins, and for the same reason: a
+# `pacman -Sy` against a live mirror resolves to whatever shipped this morning,
+# so the image would drift while its `FROM` line stood still.
+ARG ARCH_SNAPSHOT=2026/08/23
+
+# `DisableSandboxSyscalls` is pacman's own switch, shipped commented out. Its
+# downloader sandbox needs seccomp, which Rosetta does not provide, so on an
+# arm64 host every package step refuses without it — `ADR-062` §6. Packages
+# are still verified against the archive's signatures.
+RUN printf 'Server=https://archive.archlinux.org/repos/%s/$repo/os/$arch\n' "${ARCH_SNAPSHOT}" \
+        > /etc/pacman.d/mirrorlist \
+    && sed -i 's/^#DisableSandboxSyscalls$/DisableSandboxSyscalls/' /etc/pacman.conf \
+    && grep -qx DisableSandboxSyscalls /etc/pacman.conf
+
+# Buildroot's documented host requirements (`docs/manual/prerequisite.txt`),
+# plus what the Raspberry Pi kernel needs on top: `bison` and `flex` for its
+# parsers, `bc` for `kernel/timeconst`, `perl` and `python` for its build
+# scripts, and `ncurses` so `menuconfig` works when somebody drops into a shell.
+#
+# `openssl` is deliberately NOT here: the defconfig carries
+# BR2_LINUX_KERNEL_NEEDS_HOST_OPENSSL, so Buildroot builds its own and a host
+# copy would only be a second answer to one question (`ADR-011`).
+RUN set -eu; \
+    pacman -Syu --noconfirm --needed \
+        which sed make gcc binutils bash patch gzip bzip2 xz \
+        perl tar cpio unzip rsync file bc findutils wget diffutils \
+        python ncurses git bison flex pkgconf \
+    && pacman -Scc --noconfirm \
+    && rm -rf /var/cache/pacman/pkg/* /var/lib/pacman/sync/*
+
+# The unprivileged builder. uid 1000 is a convention rather than a requirement —
+# nothing outside this image reads these files by number, because the card build
+# consumes the output through a Docker volume rather than a host path.
+RUN useradd --create-home --uid 1000 builder \
+    && mkdir -p /src /br /rivet \
+    && chown builder:builder /src /br
+
+USER builder
+WORKDIR /rivet
+
+# No ENTRYPOINT, for the reason the card image gives: the runner names
+# `tools/buildroot/build.sh` explicitly, so what runs is legible in the
+# `docker run` line and a shell can be substituted to look around.
+CMD ["tools/buildroot/build.sh"]

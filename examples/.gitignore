@@ -1,0 +1,39 @@
+# Build output of the example crates. They are outside the workspace (each has
+# its own empty `[workspace]` table), so the repository's own `/target` rule —
+# anchored at the root — does not reach them.
+target/
+
+# **The two C probes write ELF, and `out/` is not `target/`.** `libgreet` and
+# `greeter` are built by their own `build.sh` with the cross toolchain, not by
+# cargo, and they put the result in `out/` — which nothing here covered, so a
+# 6 KB aarch64 executable and a 5.7 KB shared object were TRACKED. The audit of
+# 2026-09-03 found them (its LOW list).
+#
+# They are build products by every test this repository uses on the question:
+# reproducible from `tools/container/exec.sh examples/probes/libgreet/build.sh`
+# and then `.../greeter/build.sh`, and named nowhere except by those two scripts
+# — `SPEC-02`'s and `rivet-core`'s references to `libgreet.so.1` are the STRING,
+# not the file. `examples/README.md` already records what a 9.2 MB tracked
+# binary cost when Aura's packaging left; these are the same thing three orders
+# of magnitude smaller and no more correct for it.
+/probes/greeter/out/
+/probes/libgreet/out/
+
+# The Go example's built binary. **Anchored to the file**, because a bare
+# `template-go-service` also matches the DIRECTORY of the same name and would
+# exclude the whole example from the repository — which it did, silently, on
+# 2026-09-01 until `git status` was read rather than assumed.
+/templates/template-go-service/template-go-service
+
+# Aura's Go producer, the same trap a second time: `aura-vitals-go` is the name
+# of the BINARY and of the DIRECTORY it lives in, so a bare entry would exclude
+# the whole example. Anchored to the file, and `git status` read afterwards
+# rather than assumed — which is what caught it in September.
+/aura/aura-vitals-go/aura-vitals-go
+
+# The stripped cross-built `ble-listen` probe, staged beside its manifest so
+# `cargo rivet package --binary` can reach it from Windows — `deploy/launcher`
+# in the root ignore file, same reason. Anchored to the FILE, because the
+# directory carries the same name and a bare entry would exclude the source
+# too, which is the trap the entry above records.
+/probes/ble-listen/ble-listen

@@ -1,0 +1,20 @@
+# **`gpu-surface`'s link recipe, unchanged** — `examples/probes/gpu-flip/.cargo/
+# config.toml` carries the argument for each flag. This program, like that one,
+# has a surface and not a lease, so `libdrm` is not here.
+#
+# **The paths are the build container's.** `ADR-026` §7 makes the container the
+# Linux side of this project and `tools/container/exec.sh` mounts the Buildroot
+# tree at `/br`. This crate cannot be built anywhere else.
+[target.aarch64-unknown-linux-musl]
+linker = "/br/host/bin/aarch64-linux-gcc"
+rustflags = [
+    # There is no static libEGL, libGLESv2 or libgbm.
+    "-C", "target-feature=-crt-static",
+    # Let GCC drive the link: rust-lld cannot find libgcc_s or libgcc.
+    "-C", "link-self-contained=no",
+    # Where Buildroot stages the link-time libraries.
+    "-L", "/br/staging/usr/lib",
+    "-l", "EGL",
+    "-l", "GLESv2",
+    "-l", "gbm",
+]

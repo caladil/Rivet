@@ -1,0 +1,66 @@
+# **The other half of `ADR-047` §7's experiment** — the candidate that was
+# rejected, on the same board, answering the same table.
+#
+# §7 says *"build both, point them at the same static table, and drive them"*.
+# `dns-probe` beside this one is `hickory-server` with `resolver`, which
+# `ADR-047` accepted; this is `ADR-047` §4.1's option A, a responder written
+# here over `simple-dns`.
+#
+# ## It deliberately does NOT forward, and that is the comparison
+#
+# `ADR-047` §3 is that forwarding decides the whole question, and §8.1 of the
+# study says the recommendation flips to this option *"and it is not close"* if
+# forwarding is ever taken out of scope. So this probe is what that flip looks
+# like: it answers for `home.arpa.` and REFUSES everything else. What it cannot
+# show — because nothing here implements it — is any of §3's three forwarder
+# mechanisms. That is the point of the pair rather than a gap in this half.
+#
+# ## Outside the workspace, like every example
+[workspace]
+
+[package]
+name = "dns-probe-simple"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[package.metadata.rivet]
+kind    = "daemon"
+restart = "on-failure"
+ready   = "none"
+# **`none`, and the honesty of that is the finding.** `dns-probe` needs
+# `egress` because it calls Quad9; this reaches nothing, so the smallest
+# request that works is the smallest one there is.
+network = "none"
+# **5356, because `dns-probe` has 5354.** A port an application declares can be
+# taken by one that binds its own, and the supervisor refuses the start and
+# names it — so two probes cannot share. Not 53, for `dns-probe/Cargo.toml`'s
+# reason; not 5355, which is LLMNR.
+#
+# **UDP only, and that is a real limitation rather than a simplification.**
+# `ADR-047` §3: TCP means length-prefixed framing, per-connection timeouts
+# and a connection limit, which under option A is a second loop to write. It is
+# not written, so this probe cannot answer a truncation retry — say so rather
+# than declaring a socket nothing serves.
+listen  = ["udp:5356"]
+library = []
+
+[dependencies]
+# **Two crates, both already in this repository's lock** —
+# `docs/design-candidates/DNS.md` §5.2. `cmd/rivet-mdnsd` takes `simple-dns`
+# directly and says why in its own manifest: it is the named fallback if
+# `simple-mdns` stops fitting, and it is already here.
+simple-dns = "0.12"
+
+# The handed socket, and nothing else from the SDK. There is no runtime: this
+# is a blocking `recv_from` loop on an OS thread, which is all a datagram
+# responder with no upstream needs.
+rivetos-sdk = { path = "../../../rivet-sdk" }
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

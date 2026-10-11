@@ -1,0 +1,36 @@
+# The binaries `tools/docs/commands.py` and `tools/docs/check-commands.sh`
+# both read, so the two agree about what is generated and why something is
+# not. Columns are tab-separated: name, kind (host|board), include (yes|no),
+# note. `note` is empty for an included binary and is the reason, spelled out,
+# for an excluded one — plan `PLAN-Feature-Set-2026-09-12.md` §9.1 asks for
+# the reason, not just the exclusion.
+#
+# `kind` is documentation, not a different code path: every included binary
+# is run the same way, by path, inside the build container (`AGENTS.md` §10's
+# "everything runs in the container"). A host binary is one a maintainer
+# actually installs onto a workstation (`cargo install --path cmd/cargo-rivet
+# --force --locked`); a board binary ships on the card. Checked 2026-09-13 by running
+# `cargo build --workspace --bins` in the container and then `--help` against
+# every produced binary — see the excluded rows for what each refusal said.
+cargo-rivet	host	yes
+rivet-fleet	host	yes
+rivet-provision	host	yes
+rivet-reset	host	yes
+rivet	board	yes
+rivet-bluetoothd	board	yes
+rivet-deploy	board	yes
+rivet-fleetd	board	yes
+rivet-image	board	yes
+rivet-mcpd	board	yes
+rivet-mdnsd	board	yes
+rivet-netd	board	yes
+rivet-smbd	board	yes
+rivet-timed	board	yes
+femto	board	yes
+rivet-launcher	board	no	cross-only: cmd/rivet-launcher links libdrm from the aarch64 sysroot (AGENTS.md §10, the template-kiosk three flags). The container's own architecture has no libdrm to link against, so a native build fails at the linker before any --help can run: "rust-lld: error: undefined symbol: drmModeCreateLease" and eleven more. Settled by hardware or QEMU, not by this generator.
+rivet-initd	board	no	is PID 1 (cmd/rivet-initd/src/main.rs: fn main() -> !). It parses no arguments and its main never returns, confirmed by running --help under a SIGKILL timeout: the plain-SIGTERM form left it running past 180s because an init deliberately does not exit on a signal it was not written to handle.
+rivet-sysd	board	no	no --help surface: refuses the flag by name with no usage text ("rivet-sysd: arguments: unknown argument \"--help\"", exit 1). Nothing to generate from.
+rivet-splash	board	no	needs a framebuffer device to do anything: it ignores an unrecognised --help and then fails opening /dev/fb0, which only exists on a board.
+rivet-proxyd	board	no	refuses before parsing any argument without RIVET_APP_DATA, which only the supervisor sets when it starts an installed application ("RIVET_APP_DATA is not set; this was not started by a Rivet"). No --help surface reachable off a running machine.
+rivet-dhcp-hook	board	no	invoked by udhcpc's own calling convention (positional arguments and environment variables, not a --help surface); its refusal names that directly ("udhcpc said --help and set no interface").
+rivet-dnsd	board	no	no --help surface: takes exactly `--document PATH` and refuses anything else with a one-line usage ("REFUSED: usage: rivet-dnsd --document PATH", exit 1); it is started only by the supervisor, with that argument.

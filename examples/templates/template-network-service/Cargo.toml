@@ -1,0 +1,176 @@
+# **A NETWORK SERVICE, and the thing to copy when you are writing one.**
+#
+# `ADR-036` §6.2. Every other directory in `examples/` is a **probe** — it was
+# written to settle a question, and its value is that the answer is on the
+# record. This is a **template**: it exists to be copied, and everything in it
+# is either something your service will also need or a comment saying why.
+#
+# ## Deliberately ordinary
+#
+# `ADR-036` §6.3: an example that uses only `std` proves the wrong thing. It
+# shows a Rivet can run a program nobody would write, and leaves the question an
+# author actually has — *can I use the crates I use everywhere else* — answered
+# by inference.
+#
+# So this is `tokio` + `axum` + `serde` + `rusqlite`, which is an unremarkable
+# Rust web service. Three of the four were already running on a board before
+# this was written; `axum` is the one it settles.
+#
+# ## What is NOT ordinary, and it is two things
+#
+# 1. **It does not bind a port.** The supervisor opens the socket and hands over
+#    the descriptor (`ADR-015` §5.2). An application runs as its own
+#    unprivileged uid, so a port below 1024 is unreachable to it anyway —
+#    `bind(2)` answers `EACCES`.
+# 2. **It does not choose where to write.** `RIVET_APP_DATA` is the one writable
+#    directory it has, and `/` is read-only.
+#
+# Both arrive through `rivet-sdk`. That is the whole of what makes this a Rivet
+# application rather than a Linux one.
+#
+# ## Outside the workspace, like every example
+#
+# The empty `[workspace]` table below means `cargo build` at the repository root
+# never reaches this, and `examples/.gitignore` catches its `target/`.
+[workspace]
+
+[package]
+name = "template-network-service"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+# **The manifest IS the permission request** (`ADR-015` §3.3), and a declaration
+# is two-sided: the platform provides plumbing, this program owes the obligations
+# that come with it (`ADR-036` §8A).
+[package.metadata.rivet]
+# A long-running process the supervisor keeps up.
+kind    = "daemon"
+# **The reason this program has no bind() call.** One TCP socket; the supervisor
+# opens it, listens, and passes the descriptor as fd 3 with `LISTEN_FDS=1`.
+# Written `tcp:8088` here; it arrives named `tcp-8088`, because `LISTEN_FDNAMES`
+# is colon-separated and `tcp:8088` would reach the program as two names.
+#
+# **8088 and not 8080, and the way that was learned is the lesson.** This
+# template asked for 8080 first. The install succeeded and the service went
+# straight to `failed`, with the supervisor saying so precisely:
+#
+#   > this service declares listening sockets and this machine could not open
+#   > them, so it was NOT started. … A port already in use is the usual cause
+#   > and is a fact about this machine rather than about the artifact.
+#
+# `aura-controller` already had 8080 on that board. **Because the supervisor
+# opens the socket, that collision is caught before the program runs** — there
+# is no half-started service, no `EADDRINUSE` buried in an application's own
+# error handling, and nothing to diagnose beyond one journal record. A program
+# that bound its own port would have had to discover and report this itself,
+# and most do it badly.
+#
+# **Where it is bound depends on `proxy-path`** (`ADR-046` §7). This template
+# declares none, so 8088 is bound on every address. An application that asks to
+# be proxied has every port bound on `127.0.0.1` instead, and one that must also
+# be reached directly — a phone's listener — declares it after the routed port
+# as `"tcp:<port>:direct"`.
+listen  = ["tcp:8088"]
+# `/state/app/template-network-service/data`, mode 0700, owned by this
+# application's own uid (`ADR-015` §3.2A). Told to the program as
+# `RIVET_APP_DATA`.
+state   = "private"
+
+# **Another application's socket, asked for by name** — `ADR-015` §5.3,
+# `cmd/rivet-sysd::endpoints`.
+#
+# `examples/templates/template-go-service` declares `provides = ["socket:api"]`. This
+# names it as `<owner>:<endpoint>`, and if the operator grants it the supervisor
+# **chowns that socket file to this application's uid** for as long as this runs.
+# The path arrives in `RIVET_CONNECT`; it is never guessed. Aura's renderer is
+# the cautionary case — it hardcodes `/run/aura/kiosk.sock`, which is not where
+# a Rivet puts it.
+#
+# **A `connects` that cannot be satisfied stops this service STARTING**, and
+# that was measured rather than assumed (`PLAN.md` §105.7). Pointed at
+# `template-go-service:nope` on a board where that application was running, the
+# supervisor refused:
+#
+#   > wants template-go-service:nope, and template-go-service is installed but
+#   > its manifest does not declare provides = ["socket:nope"]
+#
+# `this application declares connects and the connection was refused, so it was
+# NOT started. Starting it anyway would produce a program failing at a socket
+# nobody bound.`
+#
+# So a `connects` is a **request** in the sense that the operator decides
+# (§3.3) — but it is not optional to the program that declared it. Declare only
+# what you genuinely need.
+connects = ["template-go-service:api"]
+# This service answers; it does not call out. `none` is the honest declaration
+# and the smallest request that works.
+network = "none"
+# Restart if it fails, not if it was stopped. `ADR-017` §4.1.
+restart = "on-failure"
+# **`listening`, not `notify`.** The supervisor already holds the listening
+# socket, so it can tell that the service is answering without the service
+# saying so — and a readiness protocol nobody needs is a thing to get wrong.
+ready   = "listening"
+# **`title` is deliberately absent, and it was here until the board refused it.**
+#
+# `title` is what the launcher puts on a card, so it belongs to a KIOSK
+# application. It was written here on the reasoning that it would be *harmless
+# on a headless machine*. It is not harmless: the board refused the whole
+# payload with *"the manifest cannot be read: a key is not one this build
+# defines"* — signature verified, members verified, and then rejected on a key
+# the running image had never heard of.
+#
+# The cause is a version skew worth knowing about: `cargo rivet` in this
+# repository accepts `title` (`PLAN.md` §104.42), and the image on the board
+# predates it. **A manifest key is a contract with the MACHINE, not with the
+# packaging tool** — so a template must declare only what its own kind needs,
+# and a network service does not need a card.
+# **Nothing.** `rusqlite`'s `bundled` feature compiles SQLite from C *into* this
+# binary, so the closure is empty and this is a static executable — `ADR-009`
+# §3's rung 1 as the default rather than the fallback. See `sqlite-demo`, which
+# is the probe that settled it.
+library = []
+
+[dependencies]
+# **The SDK.** A path dependency because this example lives in the repository
+# that publishes it; a real application would name a version.
+rivetos-sdk = { path = "../../../rivet-sdk" }
+
+# The HTTP surface. Plain HTTP, no TLS: `network = "none"` and this answers on a
+# LAN. Default features off — `axum`'s defaults pull in more than a JSON service
+# uses.
+axum = { version = "0.8", default-features = false, features = [
+    "http1",
+    "json",
+    "tokio",
+] }
+# The runtime. Proven on the board before this example existed: `rivet-smbd`,
+# `rivet-mdnsd` and `rivet-timed` all run on it.
+tokio = { version = "1", features = [
+    "rt-multi-thread",
+    "macros",
+    "net",
+    "signal",
+    "sync",
+    # `io-util`, for reading the granted endpoint in `/upstream`.
+    "io-util",
+] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# **SQLite, compiled from C for this target.** The feature is `bundled`, so
+# nothing is linked from the system and the closure above stays empty.
+#
+# This is the one dependency that needs the C cross toolchain —
+# `tools/toolchain/env.sh`, `SPEC-01` §5.2. Two cold agents in 2026-08-30 each
+# concluded it was impossible; it was already there and simply unexposed.
+rusqlite = { version = "0.32", features = ["bundled"] }
+
+[profile.release]
+# A service that aborts needs no unwinder, which keeps `libgcc_s` out of this
+# binary's `NEEDED` and the closure genuinely empty. `mesa-demo` records the
+# longer form of this argument.
+panic = "abort"
+strip = "symbols"

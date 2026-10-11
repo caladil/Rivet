@@ -1,0 +1,62 @@
+# **The probe that proves a GPU frame reaches the glass through a compositor.**
+#
+# `examples/probes/gpu-flip` asked the equivalent question for a LEASE — *can a
+# `gbm_bo` become a DRM framebuffer a leased CRTC will flip to?* — and answered
+# yes on `rivet-06f5c`. `ADR-058` then took leases away, so that proof no longer
+# covers the path an application uses. This asks the version of it that matters
+# now: **can a buffer allocated on the render node cross to `rivet-displayd` as
+# a dma-buf and be composited?**
+#
+# One unknown, a few seconds of runtime, and everything in `.rulings/` R-206
+# rests on the answer. If a dmabuf will not cross, `Contours` on the GPU is
+# moot and it is worth knowing that before a line of it is written.
+#
+# Its own workspace, like every other example, because `cargo rivet package`
+# builds it for a board and the root workspace is the operating system's.
+[workspace]
+
+[package]
+name = "gpu-surface"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[package.metadata.rivet]
+kind    = "daemon"
+restart = "never"
+ready   = "none"
+
+# **`gpu`, and NOT `display`** — `.rulings/` R-206 D4, and this manifest is the
+# first thing in the tree to say it.
+#
+# `gpu-flip` declared `display` because it took a lease and page-flipped. This
+# program does neither: it renders into its own buffer on `/dev/dri/renderD*`
+# and hands the compositor a descriptor. It has no card node, cannot modeset,
+# and cannot disturb whatever is on the screen — which is exactly the property
+# that made a GPU token safe to add.
+devices = ["gpu"]
+
+# The surface. Declaring it makes a machine with no compositor a NAMED refusal
+# rather than a program that starts and draws nothing.
+connects = ["rivet-displayd:wayland"]
+
+# `libEGL`, `libGLESv2` and `libgbm` are in
+# `rivet_core::package::library::PUBLIC_LIBRARIES`,
+# so the closure is empty even though this binary is dynamic.
+library = []
+
+network = "none"
+
+[dependencies]
+# **The whole point: this probe uses the SDK's path rather than its own.**
+#
+# `gpu-flip` hand-rolled every call because it was proving the calls. What is
+# being proved here is `rivet_sdk::gpu`, the thing applications will actually
+# use — a probe that reimplemented it would prove that a different program
+# works.
+rivetos-sdk = { path = "../../../rivet-sdk", features = ["composited-gpu"] }
+
+[profile.release]
+opt-level = 3
+lto = true

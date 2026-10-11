@@ -1,0 +1,25 @@
+[package]
+name = "rivetos-splash"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "rivet-splash"
+path = "src/main.rs"
+
+[dependencies]
+libc = "0.2"
+
+[lints.rust]
+# **The second crate in the workspace to need it, and the first was pid 1.**
+# `FBIOGET_VSCREENINFO` is the only way to ask a framebuffer where its colour
+# channels sit, and the alternative is assuming — which is a guess that renders
+# a grey shield blue on the first panel that disagrees. One block, with a SAFETY
+# comment, on `cmd/rivet-initd`'s rule.
+unsafe_code = "allow"
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"

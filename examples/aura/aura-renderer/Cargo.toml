@@ -1,0 +1,174 @@
+# **Aura's renderer, in Rust.** `SPEC-04`.
+#
+# A Rivet kiosk application: it declares `connects = ["rivet-displayd:wayland"]`,
+# is offered on the launcher's menu, and is handed a SURFACE when a person
+# chooses it (`ADR-058`). It opens no device node and binds no socket.
+#
+# **It was a DRM LESSEE until 2026-09-20** — `devices = ["display"]`, a lease on
+# `RIVET_DISPLAY`, a modeset and a page flip of its own. `ADR-058` replaced the
+# lease with a surface, and this manifest is what that change looks like from an
+# application's side: one declaration out, one in, and the drawing untouched.
+#
+# Its own workspace, like every other application in `examples/`, because
+# `cargo rivet package` builds it for a board and the root workspace is the
+# operating system's.
+[workspace]
+
+[package]
+name = "aura-renderer"
+version = "0.4.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[package.metadata.rivet]
+kind    = "daemon"
+restart = "always"
+ready   = "none"
+
+# ~~**The declaration that gets a screen.** There is no `kind = "kiosk"`; this
+# line is what makes a program a kiosk application.~~
+#
+# **`display` is GONE** — `ADR-058`, 2026-09-20, and its absence is the whole
+# point of that decision. This program draws through a SURFACE the compositor
+# hands it, so it needs no DRM node, no render node, no framebuffer and none of
+# §1.1's five confinement grants — `/usr/lib/gbm`, `/sys/dev/char`,
+# `/sys/devices`, `/sys/class/drm`, `/dev/dri`. Every one of those was found by
+# a build-flash-read cycle and paid for by every kiosk application, including
+# the ones that would never touch a GPU.
+#
+# What makes a program a kiosk application now is the line below.
+#
+# **`gpu` since 2026-09-21** — `.rulings/` R-206 D4, and it is the RENDER NODE
+# alone. `display` is still absent and still should be: `ADR-058`'s whole point
+# is that an application does not get the screen, and drawing with the V3D
+# changes nothing about that. This program renders into its own buffer on
+# `/dev/dri/renderD*` and hands the compositor a descriptor; it has no card
+# node, cannot modeset, and cannot disturb what is on the glass.
+#
+# **Without this line the fallback in `src/display.rs` is what happens**, and
+# it did on the first deploy: `/dev/dri: Permission denied`, every background
+# on the CPU, and a journal line saying so. That is the right failure — it
+# names the cause and keeps the screen — but it is a failure, and R-207's
+# three GPU backgrounds simply never draw on the GPU without it.
+devices = ["gpu"]
+
+# **The four slot endpoints, and this is the whole of Aura's addon model.**
+#
+# A producer claims a slot by declaring `connects = ["aura-renderer:secondary"]`.
+# The supervisor binds each socket, hands this process the listening descriptor,
+# and chowns the socket file to the one consumer that declared it — so:
+#
+#   * two addons wanting one slot is refused **by the platform**, at launch, by
+#     name, and the second is not started (`SPEC-03` §3.4). Aura arbitrates
+#     nothing and has no code for it.
+#   * an addon that was not granted a slot cannot reach it. The socket is
+#     `0600` and owned by somebody else.
+#
+# **Weather is an addon in every respect except distribution.** It ships in the
+# box and it connects to `secondary` over this same socket with this same
+# vocabulary. There is deliberately no in-process path for a shipped card: a
+# private fast path is how an addon API rots, because the built-in cards
+# quietly acquire reach a third party cannot get.
+#
+# The clock is the one card the renderer produces itself, and `SPEC-04` §4.3 is
+# why: the renderer already holds the time because it is drawing frames, and
+# putting a process and a socket between it and the clock would add a failure
+# mode to the only card that cannot otherwise fail. It is still a card, in this
+# vocabulary, through the same layout path.
+provides = [
+    "socket:primary",
+    "socket:secondary",
+    "socket:tertiary",
+    "socket:quaternary",
+]
+
+# **Empty and it stays empty.** `libdrm.so.2`, `libc.so` and `libgcc_s.so.1`
+# are in `rivet_core::package::library::PUBLIC_LIBRARIES`.
+library = []
+
+# The renderer fetches nothing. Producers do; they are separate applications
+# and declare it themselves.
+network = "none"
+
+# **The controller's socket, which this process READS** — the direct port of
+# what `cpp/src/main.cpp` did. Both message types arrive on it: `state`, which
+# becomes the clock's neighbours, and `cmd`, which carries brightness and the
+# screensaver theme the portal sets.
+#
+# There is no translator in between any more. One existed — `aura-bridge` — and
+# `cmd` fell down the gap: it relayed cards and skipped directives, so the
+# portal saved settings that reached nothing. Ruled 2026-09-02: two programs.
+# **`rivet-displayd:wayland` is the second, and it is what makes this a kiosk
+# application** — `ADR-058` §5.4, replacing the `devices = ["display"]` above.
+#
+# Declaring it does two things. It grants the socket, and more usefully it makes
+# a machine with no compositor a NAMED refusal: the supervisor reports an
+# endpoint nobody provides and does not start this program, where a renderer
+# that simply found no socket would draw nothing and say nothing.
+connects = ["aura-controller:kiosk.sock", "rivet-displayd:wayland"]
+
+# **The backgrounds this program draws come from a library, since T7.**
+#
+# The supervisor puts every installed library whose `provides-class` is in this
+# list onto this program's `LD_LIBRARY_PATH` at each discovery pass, and grants
+# the same directories in its Landlock ruleset. `src/pack.rs` then asks the
+# loader for a NAME and never for a path.
+#
+# **Nothing here names an artifact.** `aura-background-pack` is the library
+# that fills this role today; `aura-background` is the role. A second pack with
+# entirely different backgrounds provides the same class and this manifest does
+# not change — which is the whole of `ADR-053`'s class idea.
+#
+# **An absent class is SILENT by design.** A machine with no pack installed
+# draws black behind its cards and says so once in its journal, exactly as one
+# with no reading source draws no corner reading card. `src/pack.rs` handles that as
+# an ordinary machine rather than a fault.
+accepts-class = ["aura-background"]
+
+[dependencies]
+# **For `localtime_r(3)` and nothing else.** The board's zone comes from the
+# `timezone` document key, which the supervisor projects to `/etc/localtime`
+# (`ADR-021` §9) — and musl already contains the tzfile reader that turns that
+# file into an offset. Asking the C library is smaller than an RFC 8536 parser
+# and smaller than `chrono`, and it is the same call `cmd/rivet-sysd`'s
+# `Kernel::local_time` makes. `libc` is already in this workspace's graph.
+libc = "0.2"
+# **`composited-gpu` since 2026-09-21**, which implies `composited` rather
+# than replacing it — `src/display.rs` takes a GPU surface where there is one
+# and a `wl_shm` surface where there is not (`.rulings/` R-206 D3, for the x86
+# machine with no V3D). The feature links `libEGL`, `libGLESv2` and `libgbm`;
+# all three are in `rivet_core::package::library::PUBLIC_LIBRARIES`, so the
+# declared closure
+# below is unchanged.
+rivetos-sdk = { path = "../../../rivet-sdk", features = ["composited-gpu"] }
+aura-card = { path = "../aura-card" }
+# **The half of the addon boundary a HOST needs** — `dlopen` by class, the
+# `Describe` call, the frame call, and the trial note that makes a
+# memory-unsafe pack cost one restart rather than a crash loop on the process
+# holding the display. `src/pack.rs` is the whole of this program's use of it.
+#
+# This does NOT make the crate's `library` closure non-empty: the class joins
+# at discovery, not at link time, and `library = []` above stays true.
+rivetos-addon = { path = "../../../rivet-addon" }
+# The controller's wire format is JSON, and this process now reads it directly.
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[dev-dependencies]
+# `src/evidence.rs` — T6's "before" baseline (`docs/PLAN-Addon-Feature-Set-
+# 2026-09-19.md`). Content hashing only, never shipped: this crate's own
+# `library = []` above stays true for the released binary.
+#
+# `features = ["pure", "std"]` and not merely `default-features = false` is
+# `rivetos-crypto`'s own line (`ADR-029` §7.2, ruled 2026-08-23) copied
+# verbatim rather than re-derived: without `pure`, a build for
+# `aarch64-unknown-linux-musl` compiles `c/blake3_neon.c` and needs the C
+# cross-toolchain `ADR-001` §4.4 rules out. `blake3` over `sha2` because this
+# workspace already made that choice for content hashing and a second
+# algorithm for the same job would be a second thing to keep in step.
+blake3 = { version = "1", default-features = false, features = ["pure", "std"] }
+
+[profile.release]
+opt-level = 3
+lto = true

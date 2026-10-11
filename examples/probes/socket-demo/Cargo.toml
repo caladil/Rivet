@@ -1,0 +1,31 @@
+# **An unprivileged application serving port 80.**
+#
+# `ADR-015` §5.2's whole promise, in the smallest program that can demonstrate
+# it: *"Rather than granting `CAP_NET_BIND_SERVICE`, Rivet opens the listening
+# socket and passes the file descriptor to the application. The application
+# never holds the privilege and need not know the port."*
+#
+# This application runs as its own uid with no capabilities. `bind(2)` on 80
+# would answer `EACCES` if it tried — and it never tries. The supervisor binds
+# the socket and hands it over on descriptor 3, per `ADR-017` §3.4's
+# `LISTEN_FDS` convention.
+[workspace]
+
+[package]
+name = "socket-demo"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[package.metadata.rivet]
+kind    = "daemon"
+restart = "always"
+ready   = "none"
+# **80 and a unix socket.** The port is the point; the unix socket is here
+# because the two take different code paths in the supervisor and a test that
+# exercised one would say nothing about the other.
+listen  = ["tcp:80", "unix:api"]
+library = []
+
+[dependencies]

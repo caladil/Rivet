@@ -1,0 +1,81 @@
+# Shell scripts run under WSL2 and on the target. A CRLF checkout breaks them
+# with `$'\r': command not found`, which is an obscure failure for an obvious
+# cause — so the line ending is pinned rather than left to core.autocrlf.
+*.sh text eol=lf
+
+# The pre-commit hook has no `.sh` extension — it is invoked by name, the way
+# git itself finds a hook — so the glob above does not reach it and it needs
+# its own line, for the same reason.
+.githooks/pre-commit text eol=lf
+
+# The same reasoning for anything the firmware or the kernel parses directly.
+config.txt   text eol=lf
+tryboot.txt  text eol=lf
+cmdline.txt  text eol=lf
+autoboot.txt text eol=lf
+
+# And for everything Buildroot and kconfig parse. This one is worse than a
+# broken script, because it does not break: kconfig reads `CONFIG_FOO=y\r` and
+# keeps the carriage return as part of the *value*, so a string symbol comes out
+# subtly wrong and a `=y` line can be dropped without a word. `ADR-024` §5's
+# fragment is the file this protects — a requirement silently not applied is
+# precisely the failure §2 exists to prevent.
+tools/buildroot/linux/*.config text eol=lf
+tools/buildroot/configs/*      text eol=lf
+tools/buildroot/external.desc  text eol=lf
+tools/buildroot/external.mk    text eol=lf
+tools/buildroot/Config.in      text eol=lf
+
+# And the harness's desired-state fixture, which is `cp`ed into an initramfs and
+# parsed by `rivet-config` on the guest. Added 2026-08-30 after it cost a run:
+# `tools/qemu/smoke.sh` composes a document by filtering the fixture's own
+# `version` line out and writing its own, and the filter was `grep -v '^version
+# = 1$'` — which does not match `version = 1\r`. So the composed document
+# carried the key TWICE, `rivet-mcpd` refused it with *"duplicate key"* at a
+# line number in the middle of the fixture, and the control plane restarted five
+# times and gave up. The script is robust to it now as well; this is the other
+# half, because a TOML file whose line ending changes its meaning is the same
+# case as the kconfig fragment above.
+tools/qemu/*.toml text eol=lf
+
+# **The vitals fixture, whose files stand in for `/proc`, `/sys` and the WIRE.**
+#
+# Added 2026-09-04 after `tools/test-all.sh` reported
+# `examples/aura/aura-vitals-test` failing on a clean checkout with the crate's
+# own assertion: *"expected-card.txt has CRLF line endings; the wire format is
+# LF"*. That test is right and the file was wrong — `SPEC-04` §6.1's transport
+# is LF-terminated lines, so a `\r` is not a formatting detail, it is a byte in
+# the message.
+#
+# The whole directory is pinned rather than the one file. Everything else in it
+# stands in for a Linux `/proc` or `/sys` entry, which never has a carriage
+# return, and a fixture that differs from the thing it imitates is answering a
+# question nobody asked. It is the kconfig case above, one directory along: the
+# hazard is not that a CR breaks a parser but that it does not.
+examples/aura/vitals-fixture/** text eol=lf
+
+# **The build container's image tag, read by four shell scripts.**
+#
+# A CRLF here does not produce a wrong tag, it produces `rivet-card-build:3\r`
+# — an image name nothing matches — and every container script then fails with
+# a confusing *image not found*. The scripts strip it defensively as well, on
+# 2026-09-02's evidence: SEVEN tracked scripts were found sitting as CRLF in a
+# working copy against this very file's `*.sh text eol=lf`, and two of them run
+# INSIDE the container where a CRLF shebang makes an existing file report as
+# `No such file or directory`. An attribute is a statement of intent; the strip
+# is what makes it not matter.
+tools/container/image-version text eol=lf
+
+# **The command reference and the list it is generated from, read INSIDE the
+# container by `tools/docs/check-commands.sh`.** Found 2026-09-13: in a Windows
+# working copy the manifest checked out as CRLF, every line ended in `\r`, and
+# the checker matched no binary at all and refused ("names no included binary").
+# It passed in the worktree that wrote it and failed in the main checkout. The
+# reference is compared byte for byte against live `--help`, so it needs LF too.
+tools/docs/commands-manifest.tsv text eol=lf
+
+# **Captures of the kernel's own files, which never carry a carriage return.**
+# A fixture that differs from the file it imitates answers a question nobody
+# asked — the vitals fixture's case above.
+cmd/rivet/tests/fixtures/** text eol=lf
+docs/COMMANDS.md text eol=lf

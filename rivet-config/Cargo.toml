@@ -1,0 +1,80 @@
+[package]
+name = "rivetos-config"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Rivet's configuration schema — types plus schema generation. ADR-007."
+
+[dependencies]
+# ADR-014 §3 says "rivet-core depends on rivet-config". Neither edge had
+# ever been created, and the `[network]` table forces the choice: the document
+# carries addresses and interface names, those types are rivet-core::net's,
+# and ADR-009 §4 forbids re-declaring a type Rivet already owns. So the edge
+# runs this way and the ADR's sentence is amended in place rather than
+# contradicted silently — see ADR-014 §3.2, added 2026-08-23.
+#
+# rivet-core has no dependencies at all, so this cannot cycle, and the
+# isolation rule is untouched: core still reaches nothing that touches the
+# world, and this crate still performs no I/O.
+rivetos-core = { path = "../rivet-core" }
+
+# Surveyed before writing, per ADR-009 §3.
+#
+# Licences, read from `cargo tree --format '{p} {l}'` on this tree rather than
+# from memory (ADR-010 §3 requires exactly that). The whole graph is permissive
+# and nothing is copyleft, so ADR-010 §2.1 is not engaged:
+#   toml_edit, toml_datetime, toml_parser, hashbrown   MIT OR Apache-2.0
+#   indexmap, equivalent                               Apache-2.0 OR MIT
+#   winnow                                             MIT only
+# winnow being MIT-only is worth noticing rather than glossing: it is
+# statically linked, so it carries an attribution obligation and no Apache-2.0
+# patent grant. That is the same position as musl (ADR-010 §3.1) and has the
+# same consequence — none, beyond the attribution manifest ADR-010 §4.1 has
+# cargo-deny generate.
+#
+#   toml       rung 1, and the obvious choice. Rejected for Stage 0: it reaches
+#              the schema through serde derive, and ADR-009 §3.4 names
+#              configuration as precisely where a dependency's vocabulary is
+#              most expensive to remove. `deny_unknown_fields` also reports the
+#              offending field only inside a message string, so ADR-007 §3.6.5's
+#              "typed error naming the field" would be recovered by matching on
+#              a dependency's prose.
+#   toml_edit  chosen. It parses to a document that keeps the byte span of every
+#              key and value, which is what lets ConfigError carry a line and
+#              column instead of quoting the text at it — ADR-020 §4, since the
+#              provisioning file will hold a passphrase. It is also
+#              format-preserving, which is what ADR-004 §6's "the credential is
+#              then removed from the provisioning file" will need. And it is
+#              what Ignition settled on (its Cargo.toml records why), which
+#              matters under ADR-013.
+#   serde      deliberately absent, for the reason under `toml`. Revisit when
+#              `rivet schema` arrives (ADR-006 §7, required from Stage 1):
+#              schemars wants serde, and whether the schema types carry serde
+#              derives is the maintainer's call, not a side effect of this crate.
+#
+# Features are additive, so anything enabled here is forced on every consumer —
+# hence default-features = false and an explicit list. ~~`display` stays off
+# because Stage 0 only reads; `rivet export` (ADR-006 §6.2, Stage 3) turns it
+# back on, together with ADR-007 §6 item 2's canonical serialisation.~~
+#
+# Corrected 2026-08-23: `display` stays off, and canonical serialisation arrived
+# without it. `toml_edit`'s writer preserves the formatting of the document it
+# parsed, which is the opposite of what ADR-007 §3.1 asks for — two machines in
+# the same state must produce byte-identical documents, so the *input's* layout
+# must not survive. src/serialise.rs emits the canonical form directly; the
+# schema's whole value space is integers, booleans and strings drawn from
+# already-validated character sets, so the emitter is a page long and every
+# escape it produces is tested against the parser.
+toml_edit = { version = "0.25.13", default-features = false, features = ["parse"] }
+
+[lints]
+workspace = true
+
+[lib]
+# The PACKAGE is `rivetos-config` and the LIBRARY is `rivet_config`.
+# ADR-033 §4: crates.io names and source names are different facts, and
+# rivet.gg already owns the `rivet-*` package namespace.
+name = "rivet_config"
+path = "src/lib.rs"

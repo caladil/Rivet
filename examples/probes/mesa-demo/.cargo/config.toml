@@ -1,0 +1,35 @@
+# **The link recipe, in the crate rather than in an environment variable.**
+#
+# `build.sh` beside this file carries the whole argument for each flag — every
+# one was found by a linker error and none is guessable. It lives here as well
+# so that ANY cargo invocation in this directory gets it, which `cargo rivet
+# package` is: it runs its own `cargo build` and knew nothing about a `RUSTFLAGS`
+# exported for a different command. That failure is the reason this file exists.
+#
+# **The paths are the build container's**, and that is not a portability
+# oversight: `ADR-026` §7 makes the container the Linux side of this project, and
+# `tools/container/exec.sh` mounts the Buildroot tree at `/br`. This crate cannot
+# be built anywhere else, `build.sh` refuses with that sentence when it is tried,
+# and a relative path would only make the failure quieter.
+[target.aarch64-unknown-linux-musl]
+linker = "/br/host/bin/aarch64-linux-gcc"
+rustflags = [
+    # There is no static libEGL. Rust's musl target links statically by
+    # default, which is right for every other binary here (ADR-003 §5).
+    "-C", "target-feature=-crt-static",
+    # Let GCC drive the link: rust-lld cannot find libgcc_s or libgcc, which
+    # live under lib/gcc/<tuple>/<version>/ — a path the cross GCC computes.
+    "-C", "link-self-contained=no",
+    # Where Buildroot stages Mesa's link-time libraries. The RUNTIME copies are
+    # in /lib on the card, put there by tools/card/build.sh's collect_libraries.
+    "-L", "/br/staging/usr/lib",
+    # **`libgcc_s` could not be removed, and the attempts are recorded rather
+    # than left in.** `panic = "abort"`, `-static-libgcc` and
+    # `-Wl,--as-needed` were each tried and each left `libgcc_s.so.1` in
+    # NEEDED: Rust's musl target links it regardless, and something in the
+    # runtime still references it. It is therefore part of what "dynamically
+    # linked" MEANS on this toolchain rather than a library this program chose,
+    # which is the argument for the platform promising it beside `libc.so` —
+    # and a DIFFERENT argument from the one that admitted Mesa. See
+    # `rivet_core::package::library::PUBLIC_LIBRARIES`.
+]

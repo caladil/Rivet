@@ -1,0 +1,5 @@
+# The cross linker, for `hello-rivet`'s reason: the host's `cc` cannot link
+# aarch64-unknown-linux-musl, and `rust-lld` ships with the toolchain. This
+# probe links no C. ADR-026 §3.1.
+[target.aarch64-unknown-linux-musl]
+linker = "rust-lld"

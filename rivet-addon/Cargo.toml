@@ -1,0 +1,58 @@
+# **The addon protocol** — `PLAN-Feature-Set-2026-09-12` §6.3, `.rulings/`
+# R-196 through R-198.
+#
+# An addon is a shared rivet an application LOADS: `ADR-053` decides which
+# library joins which application, and this crate is what they say to each
+# other once it has. Both halves link it — the host application and the addon
+# library — which is why it lives beside `rivet-sdk` rather than inside it:
+# a host is an ordinary application, an addon is not an application at all,
+# and neither is the operating system.
+#
+# # It follows `rivet-sdk`'s posture, and for `ADR-036` §5's reason
+#
+# An application is a foreign program and must not link the operating system,
+# so there is no `rivetos-core` here and there never will be. What this crate
+# does link is stated below, each with its argument, because this list is the
+# one an addon author inherits whether they wanted it or not.
+[package]
+name = "rivetos-addon"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[lib]
+name = "rivetos_addon"
+path = "src/lib.rs"
+
+[dependencies]
+# **`dlopen`, `dlsym` and nothing else.** `src/host.rs` is the only file that
+# reaches for it, it is behind `cfg(unix)`, and the four calls it makes are the
+# whole of this crate's business with the loader. `libloading` would do the
+# same job with a nicer type and one more crate in every addon's graph; twenty
+# lines of `unsafe` in one audited file is the trade `ADR-009`'s reuse posture
+# asks for at this size.
+libc = "0.2"
+
+# **The wire, and why it is JSON rather than `SPEC-04`'s line format.**
+#
+# `SPEC-04` §6.2 argues a line format for the card wire and it is right there:
+# thousands of tiny messages, a C++ reader, and a frame budget. This boundary
+# is the opposite case — a handful of messages a minute, both sides Rust, and
+# the thing that matters is that an old host can read a new addon's answer
+# without either of them having been rebuilt. Unknown fields are IGNORED by
+# construction here, which is what makes a version skew degrade instead of
+# refuse.
+#
+# It is also what a journal line can carry verbatim when an addon misbehaves,
+# and that is worth a dependency on its own.
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[dev-dependencies]
+# **Solely so `tests/agreement.rs` can prove the one re-declared constant and
+# the enumeration channel's grammar still match** — `rivet-sdk`'s manifest has
+# the identical entry for the identical reason. A dev-dependency is not linked
+# into consumers, so no application or addon that depends on this crate sees
+# `rivetos-core`; the edge exists in the test binary and nowhere else.
+rivetos-core = { path = "../rivet-core" }

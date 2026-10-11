@@ -1,0 +1,102 @@
+# Runs of spaces that are DELIBERATE, pinned so `prose.py --check` stays quiet
+# about them and loud about everything else.
+#
+# Format: `path | distinctive substring`. NOT `path:line` - that was tried first
+# and was wrong within one commit, because repairing a literal above a pinned one
+# turns one line into three and every pin below it drifts.
+#
+# A pin that stops matching is a failure too: the line changed or the reason went
+# away, and either way this file is now lying.
+#
+# Anything NOT pinned here is a defect - a `\` line continuation was lost, and an
+# operator reads a sentence with a hole in it. prose.py's docstring has the
+# mechanism.
+
+# A test that searches its OWN source text. The escape and eight spaces match
+# real Rust indentation in the file being searched; rewriting them breaks it.
+cmd/rivet-fleet/src/tui/mod.rs | KeyModifiers::CONTROL
+
+# A table header. Column alignment for rivet-image's partition report, not
+# prose - the spaces are what line the columns up under each other.
+cmd/rivet-image/src/main.rs | # label
+
+# A doc comment that QUOTES the damage as an illustration of the bug it is
+# describing. Repairing it would erase the example.
+rivet-core/src/package/error.rs | the message reads
+
+# ---------------------------------------------------------------------------
+# Pinned 2026-09-04, when `{` joined the trailing character class and the guard
+# could see a run of spaces followed by a FORMAT PLACEHOLDER for the first time.
+#
+# Every one below is a REPORT COLUMN: a label, spaces, and the value lined up
+# under the value on the row above. They read correctly precisely BECAUSE the
+# spaces are there, which is the opposite of the defect this tool hunts. The
+# widened pattern found nine and exactly one was real — the launcher's
+# `forgetting … earlier relaunch(es)`, read off a running board mangled, and
+# repaired in the same change rather than pinned.
+# ---------------------------------------------------------------------------
+cmd/cargo-rivet/src/identity.rs | cert
+cmd/cargo-rivet/src/key.rs | seed
+cmd/cargo-rivet/src/run.rs | tool
+cmd/rivet-fleet/src/diff.rs | cost
+cmd/rivet-fleet/src/main.rs | hostname
+cmd/rivet-fleet/src/main.rs | name
+cmd/rivet-fleet/src/main.rs | role
+cmd/rivet-fleet/src/main.rs | timezone
+cmd/rivet-smbd/src/main.rs | user
+
+# ---------------------------------------------------------------------------
+# Pinned 2026-09-13 (`.rulings/` R-159 R24). All five had failed the check on
+# a clean tree since before 2026-09-12, and three agents reported them as
+# pre-existing. Read one by one, none is a lost continuation:
+# ---------------------------------------------------------------------------
+# Report columns: a label, spaces, and the value lined up under the row above.
+cmd/cargo-rivet/src/backup.rs | checked:
+cmd/rivet-provision/src/main.rs | hostname
+cmd/rivet-provision/src/main.rs | services
+# A test INPUT: JSON whose whitespace is the point, proving the parser tolerates
+# a hand-formatted document. Removing the spaces removes the test.
+cmd/cargo-rivet/src/json.rs | disks
+# A usage string's second form, indented to sit under the first one after
+# `usage: ` - seven spaces, the width of that word and its colon.
+tools/qemu/fixture-signer/src/main.rs | rivet-fixture-signer trust-store
+
+# ---------------------------------------------------------------------------
+# Pinned 2026-09-13, when capitals and digits joined both character classes.
+# The widened pattern found seven. Two were real lost continuations, repaired in
+# the same change rather than pinned: `RAW bytes` in rivet-image's seed refusal
+# and `configures NOTHING` in its udhcpc description. The five below are
+# deliberate.
+# ---------------------------------------------------------------------------
+# Report columns: an upper-case status word, spaces, then the value under the
+# value on the row above.
+cmd/rivet-fleet/src/main.rs | CANNOT
+cmd/rivet-fleet/src/tui/top.rs | load
+cmd/rivet-fleet/src/tui/top.rs | clock
+cmd/rivet-fleet/src/tui/top.rs | trial
+# A test INPUT: a /proc/<pid>/stat line whose space-separated numbers are the
+# format being parsed.
+cmd/rivet/src/device.rs | 12345
+# Pinned 2026-09-14, Wave C3. Assertions against `provision::summarize`'s own
+# report columns (item 5) - a label, spaces, then the value aligned under the
+# label above, `crate::fleet::Survey::report`'s own column convention.
+cmd/cargo-rivet/src/provision_tests.rs | hostname        example-server
+cmd/cargo-rivet/src/provision_tests.rs | role            server
+cmd/cargo-rivet/src/provision_tests.rs | role            member
+# Pinned 2026-09-14, R-184. `cargo rivet fleet push`'s plan report: a label,
+# spaces, then the value aligned under `local main`/`server main` above it —
+# the same column convention as the summary.
+cmd/cargo-rivet/src/fleet_push.rs | would         create main
+cmd/cargo-rivet/src/fleet_push.rs | would         fast-forward main
+# `facts-probe`'s report: a label, spaces, then the value aligned under the
+# label above - the same column convention as the reports pinned above.
+examples/probes/facts-probe/src/main.rs | comm          {}
+examples/probes/facts-probe/src/main.rs | state         {}
+examples/probes/facts-probe/src/main.rs | threads       {}
+examples/probes/facts-probe/src/main.rs | wchan         {}
+examples/probes/facts-probe/src/main.rs | syscall       {}
+examples/probes/facts-probe/src/main.rs | parked        state
+# A test's failure message that QUOTES the defect it guards against: the
+# rendered page once read "of" then a newline and a run of spaces, and the
+# message reproduces that text so a reader sees what went wrong.
+cmd/rivet-fleetd/src/supervisor_tests.rs | of \n         processor time

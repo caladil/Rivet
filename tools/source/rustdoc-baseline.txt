@@ -1,0 +1,4 @@
+# Warnings from `cargo doc --workspace --no-deps`, root workspace only.
+# A rise fails this script; a fall prints FELL and is not a failure.
+# Regenerate: tools/container/exec.sh tools/test-all.sh '' --bless
+0

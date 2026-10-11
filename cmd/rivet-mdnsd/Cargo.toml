@@ -1,0 +1,50 @@
+[package]
+name = "rivetos-mdnsd"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Rivet's mDNS responder. Announces <hostname>.local so a machine is reachable by name. ADR-005 3, ADR-017 3."
+
+[[bin]]
+name = "rivet-mdnsd"
+path = "src/main.rs"
+
+[dependencies]
+# The projection it reads (`rivet_core::mdns`) and the hostname type.
+rivetos-core = { path = "../../rivet-core" }
+
+# **The socket and `uname(2)`**: `rivet_adapter_net::mdns`. The socket needs
+# `SO_REUSEADDR` set before `bind(2)`, which `std` cannot do, and a confined
+# responder takes its name from the kernel without reading a path. Both are
+# syscalls, and that crate already links `libc`, so this crate takes no
+# dependency of its own for them.
+rivetos-adapter-net = { path = "../../rivet-adapter-net" }
+
+# **The DNS wire format, and the responder is written over it here.**
+#
+# `simple-mdns` was this crate's responder until the socket had to be opened
+# on the main thread: its responder opens its sockets on a thread of its own,
+# reports a failure only through `log::error!` and leaves the caller running
+# with no way to learn of it, and it takes no socket handed in. That is a
+# responder that is `started` and answers nothing, which `.rulings/` R-252
+# forbids. `simple-dns` was already the named fallback for exactly this — the
+# one-dependency wire format `simple-mdns` is itself built on — and answering
+# one `A` record for one name is a small loop over it (`crate::announce`'s
+# `reply`). `simple-mdns` remains in the workspace for `rivetos-mdns`, the
+# client.
+simple-dns = "0.12"
+
+# Deliberately NOT here, with the reason recorded per `ADR-009` §3:
+#
+#   ignition       `AGENTS.md` §8.4's default, refused for the reason every
+#                  other on-device binary refuses it and `ADR-034` §10.3
+#                  summarises: `ignition::update` cannot be compiled out, and a
+#                  self-updater on a machine whose update model is `ADR-018`
+#                  §5's A/B images is a second updater. This one runs on a card.
+#
+#   rivetos-config the machine document is not this program's to read; the
+#                  supervisor projects what it needs (`rivet_core::mdns`).
+[lints]
+workspace = true

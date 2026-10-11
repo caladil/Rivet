@@ -1,0 +1,62 @@
+# **The probe that answers `ADR-041` §8.3's second and third questions.**
+#
+# Two of the four measurements that close tier 1 could not be taken without an
+# application: `rivet-bluetoothd` **fans out and does not journal** — `ADR-041`
+# §6.3 argues that writing every advertisement into a rolling 1 MB journal
+# would fill it at the rate of the air — so *did this machine hear a real
+# sensor* and *has anything consumed the endpoint* are one question with one
+# answer, and this is the program that reads it.
+#
+# It is a **probe** and not a template: it was written to settle a question and
+# its value is that the answer is on the record (`ADR-036` §6.2). Nothing here
+# is a shape to copy for a real Bluetooth application — a real one would decode
+# its own vendor's payload and act on it.
+#
+# ## What it deliberately does not do
+#
+# **It does not know what a Govee is.** `ADR-041` §6.3 keeps vendor decoding
+# out of the platform, and putting it in the probe instead would only move the
+# same mistake one directory. What it prints is what the specification defines
+# for everybody: the address, the PDU kind, the RSSI, and the length-tagged AD
+# structures, with a **Complete Local Name** rendered as text because that
+# structure means a name for every device that sends one. A sensor identifies
+# itself in the output; nothing in this program was told about it.
+[workspace]
+
+[package]
+name = "ble-listen"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[package.metadata.rivet]
+kind    = "daemon"
+# `on-failure`, so that a daemon restart — which closes the stream and is the
+# ordinary end of it (`rivet_sdk::bluetooth::Advertisements` returns `None` on
+# EOF) — brings this back rather than leaving a silent probe.
+restart = "on-failure"
+ready   = "none"
+network = "none"
+# Nothing is written. The journal is the output, which is the point: a probe
+# whose findings are in a file on the board is a probe nobody reads.
+state   = "none"
+# **The whole mechanism under test.** `ADR-041` §6.2: there is no
+# `devices = ["bluetooth"]`, because the platform holds the adapter and hands
+# out a socket, and `connects` already describes that relationship. The
+# supervisor binds `rivet-bluetoothd`'s endpoint, chowns the socket file to
+# this application's uid, and tells it the path in `RIVET_CONNECT`.
+#
+# **A `connects` that cannot be satisfied stops this service starting**, and on
+# a machine where `rivet-bluetoothd` is disabled — which is how it ships
+# (`ADR-041` §6.5) — the refusal is *"no such service is enabled"* and names
+# the document key.
+connects = ["rivet-bluetoothd:advertisements"]
+library = []
+
+[dependencies]
+rivetos-sdk = { path = "../../../rivet-sdk", features = ["bluetooth"] }
+
+[profile.release]
+panic = "abort"
+strip = "symbols"

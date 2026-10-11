@@ -1,0 +1,25 @@
+[package]
+name = "rivetos-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Rivet's operations as types. Performs no I/O — see ADR-014 §3."
+
+# The empty dependency list is the isolation rule (ADR-014 §3), not an
+# oversight. Every forbidden edge — adapters, transports, rendering, Ignition,
+# clap — is absent here, so it fails to compile rather than failing review.
+[dependencies]
+secrecy = "0.10.3"
+zeroize = "1.9.0"
+
+[lints]
+workspace = true
+
+[lib]
+# The PACKAGE is `rivetos-core` and the LIBRARY is `rivet_core`.
+# ADR-033 §4: crates.io names and source names are different facts, and
+# rivet.gg already owns the `rivet-*` package namespace.
+name = "rivet_core"
+path = "src/lib.rs"

@@ -1,0 +1,9 @@
+# Buildroot requires this file to exist in a br2-external tree, even when the
+# tree adds no packages of its own. Rivet adds none: `ADR-009` §6 draws the
+# boundary at "Buildroot produces a bag of correctly-built binaries and a
+# toolchain; it does not decide what the filesystem looks like". A Rivet
+# package here would be Rivet's build logic living inside Buildroot, which is
+# the failure that ADR's "against" column named.
+#
+# What this tree carries instead is a defconfig and two kernel fragments —
+# configuration, not code.

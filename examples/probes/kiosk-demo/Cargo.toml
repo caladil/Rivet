@@ -1,0 +1,58 @@
+# **The first kiosk application.** `ADR-015` §6.2, built 2026-08-31.
+#
+# It drives the display it was handed and opens every input device, which an
+# application on a Rivet cannot do unless the supervisor gave them to it: every
+# `/dev/input/event*` is `0600 root:root` on a devtmpfs with no udev, and an
+# application runs as its own unprivileged uid.
+#
+# ~~It opens the framebuffer … `/dev/fb0`~~ **Struck 2026-09-04.** The
+# framebuffer path went on 2026-09-01, when `src/drm.rs` replaced it with KMS,
+# and a lessee is not granted `/dev/fb0` at all any more — the `display` class
+# expands to `/dev/dri/renderD*` for an application handed a lease
+# (`ADR-036` §3.1, `.rulings/` R-138). The screen arrives on `RIVET_DISPLAY`.
+#
+# So this program is a test of the grant rather than a demonstration of
+# graphics. It draws, it reports what it could and could not open, and — because
+# `ADR-003` §6.2's distinction is the whole hazard — it says which of those two
+# it is doing.
+[workspace]
+
+[package]
+name = "kiosk-demo"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[package.metadata.rivet]
+kind    = "daemon"
+restart = "always"
+ready   = "none"
+library = []
+
+# **The declaration.** Without it the supervisor grants nothing and every open
+# below answers EACCES — which is the point, and which this program reports
+# rather than crashing on.
+devices = ["display", "input"]
+
+[dependencies]
+# **The SDK, for the display channel and now for drawing** — `PLAN.md` §106.2.
+#
+# This example had no dependencies and that was a feature; it now has one, and
+# the reason is that receiving a descriptor is `recvmsg` plus the `CMSG_*`
+# layout. Every kiosk application needs exactly that, so it belongs in the SDK
+# rather than copied into each one — which is `ADR-036` §5's argument for the
+# crate existing at all.
+#
+# **`draw` was added 2026-09-04**, and it deleted 219 lines from this crate.
+# `src/font.rs` was a five-by-seven bitmap with no capital letters, copied from
+# `cmd/rivet-splash` — so this example's screen was written in lower case
+# because the glyphs for anything else did not exist. The SDK carries a real
+# rasteriser and the image carries real typefaces; an example demonstrating the
+# platform had no business looking worse than the platform.
+#
+# **It costs `fontdue` and nothing else.** `draw` is pure Rust: `screen` is the
+# feature that links `libdrm`, and it was split out on 2026-09-01 exactly so
+# that taking the shapes and the type does not drag the display library in.
+# This crate keeps its own `src/drm.rs` and does not take `screen`.
+rivetos-sdk = { path = "../../../rivet-sdk", features = ["draw"] }

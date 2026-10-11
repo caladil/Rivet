@@ -1,0 +1,74 @@
+[package]
+name = "rivetos-image"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Assembles a bootable Rivet card. A host tool — ADR-009 §6."
+
+# A HOST tool, not a target one. It runs on the build machine (WSL2) and drives
+# mkfs and sgdisk, which is ADR-009 §3.4's left column: self-contained programs
+# driven over a pipe, with their types never reaching Rivet's own.
+[dependencies]
+rivetos-core = { path = "../../rivet-core" }
+
+# **BLAKE3 and Ed25519, so that a carried payload is verified HERE** —
+# `ADR-050` §4, 2026-09-07. `--application` puts a signed `.rvt` on the boot
+# partition, and `ADR-050` is explicit that a bad one must be refused where a
+# person can see it rather than on a headless board.
+#
+# This crate's own header already named `cmd/rivet-image` as one of its two
+# callers, on the strength of a signing step that ended up in `cargo rivet`
+# instead; this is that edge arriving for the opposite reason. The verifier is
+# `rivet_core::package::read::open` either way — the same code a board runs
+# (`ADR-011`, one authority) — and what is added here is only the two
+# algorithms behind its ports.
+rivetos-crypto = { path = "../../rivet-crypto" }
+
+# **So `--fleet-repository` can read the composed document's OWN enabled
+# services, rather than this crate re-deriving a role it has nowhere to keep**
+# — `PLAN-Feature-Set-2026-09-12` §4, `ADR-050` §5.1. Used for exactly one
+# thing: `rivet_config::Document::carried_services`, called only when
+# `--fleet-repository` is given. `--document` on its own still carries the
+# provisioning file as opaque bytes, unparsed, on the reasoning this crate has
+# stated since before this dependency existed: a machine with an unparsable
+# document still boots and can be reached, so the refusal for a bad one
+# belongs on the board, not the workstation. That reasoning is unchanged for
+# every build that does not pass `--fleet-repository`.
+rivetos-config = { path = "../../rivet-config" }
+
+# **Reads `manifest.toml`, `cmd/cargo-rivet/src/fleet.rs`'s own format** —
+# `ADR-052` §2. The identical version and feature set that crate already pins,
+# because this is the same file the same three fields are read out of; parsing
+# is all either caller needs, so `default-features = false, features =
+# ["parse"]` costs nothing extra here either. Not shared code: that module has
+# no `[lib]` target (`rivet-fleet-repo`'s own header explains why an ADR-052
+# reader accepts this rather than forcing one), so this crate reads the same
+# three fields a second time rather than gaining a dependency on a binary.
+toml_edit = { version = "0.25.13", default-features = false, features = ["parse"] }
+
+# **Tests only, and it replaced a vendored copy on 2026-08-23.** This module and
+# `rivet-adapter-image` are written against the same `autoboot.txt` by
+# different people, so the suite here runs PID 1's own parser over the file this
+# tool writes. Until that parser lived in a library crate it could not be
+# depended on at all — it was inside `cmd/rivet-initd`, a binary — so it was
+# copied verbatim behind a text-equality drift guard. The move that created
+# `rivet-adapter-image` removed the reason for the copy, so the copy and its
+# guard are gone and the real function is called instead: strictly stronger, and
+# one fewer place for the two to disagree (`ADR-011`).
+#
+# A dev-dependency rather than a dependency, deliberately: nothing the shipped
+# host tool does needs it, and `ADR-014` §3's "cmd/* may depend on everything"
+# is a permission rather than an invitation.
+[dev-dependencies]
+rivetos-adapter-image = { path = "../../rivet-adapter-image" }
+
+[lints]
+workspace = true
+
+[[bin]]
+# The PACKAGE is `rivetos-image` and the BINARY is `rivet-image`, which is what
+# /system/bin holds and what an operator types. ADR-033 §4.
+name = "rivet-image"
+path = "src/main.rs"

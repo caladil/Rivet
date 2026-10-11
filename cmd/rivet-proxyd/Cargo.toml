@@ -1,0 +1,212 @@
+# **`rivet-proxyd`** — one name, one certificate, many applications.
+#
+# `R-133`, ruled 2026-09-03: a path-based proxy removes the DNS headaches, so the
+# proxy routes by path only, for now at least (.rulings/ R-133).
+#
+# `https://<host>/reliquary/` reaches the application that declared
+# `proxy-path = "reliquary"`. Nothing is configured: the routing table is
+# DERIVED from installed manifests, so a route exists because an author asked
+# for it in something the machine verified.
+#
+# # Part of the operating system, run in user space — `ADR-060`
+#
+# The image carries it at `/system/bin/rivet-proxyd` and `cmd/rivet-sysd`
+# defines it; it is not published, carried or installed, and a fix to it ships
+# as a system update. It still runs as the unprivileged uid it had as an
+# application, under a Landlock ruleset, from `/state/app/rivet-proxyd/`: it is
+# handed a listening socket, reads its certificate out of its own data
+# directory, and has no privilege the supervisor did not give it. **Whether it
+# runs is the machine's role** — `[services.rivet-proxyd] enabled` in the
+# document, which a fleet server's and a fleet member's both set.
+#
+# `[package.metadata.rivet]` below is the manifest it shipped with as an
+# application. The supervisor's definition restates it by hand, and a test in
+# `cmd/rivet-sysd` reads this file so the two cannot drift.
+#
+# # It holds 443, and it is the machine's authentication gate
+#
+# ~~It does NOT hold 443 yet, and that is deliberate.~~ **Since 2026-09-05 it
+# does** — `R-152`, `ADR-046` §7. That section said the move was not a packaging
+# decision but an authentication one, and it was right: path routing requires
+# terminating TLS, and terminating takes the browser's client certificate away
+# from everything behind it. `R-152` answered it — **this proxy verifies the
+# operator's certificate once, for every application** — and 443 follows.
+#
+# `rivet-fleetd` moved to 4443 and keeps its own mTLS, because the
+# administration surface must not depend on the thing it administers.
+#
+# **`/fleetd` is still not a route, and that is not an oversight.** Fleet is
+# reached directly on its own port; putting the administration surface behind
+# the proxy would mean a broken proxy could not be fixed through the tool that
+# fixes machines.
+[package]
+# ~~**`rivet-proxyd` and NOT `rivetos-proxyd`**, which deviates from `ADR-033`
+# §4 on that section's own stated grounds.~~
+#
+# **`rivetos-proxyd` since 2026-09-04, ruled by the maintainer** — and the
+# reasoning that was here is not overturned, it is satisfied a better way.
+#
+# What it said, and it was right: §4's table claims `[package] name` is seen by
+# *"crates.io, and nothing else"*, and that stopped being true when
+# `cargo rivet package` began using it as the artifact's `product` — which
+# becomes the directory under `/state/app`, the `[services.<name>]` table an
+# operator writes, and the target of `rivet apply install-secret`. Taking
+# `rivet-proxyd` as the package name bought that, at the price of sitting in
+# **rivet.gg's crates.io namespace**, which is the entire reason `rivetos-`
+# exists.
+#
+# **The packaging tool now takes the BINARY name as the product** — see
+# `cmd/cargo-rivet/src/crate_meta.rs`'s `product_name`. So both properties hold
+# at once: the package stays out of a namespace this project does not own, and
+# the machine still calls this application `rivet-proxyd`, which is what
+# `[[bin]]` below has always said.
+#
+# The same change is what lets `rivetos-fleetd` be deployed over the board's
+# `/state/app/rivet-fleetd` at all — `PLAN.md` §129.5 records that it could not
+# be, and that this is why port 443 was still speaking TLS 1.2 after everything
+# else had stopped.
+name = "rivetos-proxyd"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "The path proxy: one name and one certificate for every application on a machine. R-133."
+
+[[bin]]
+name = "rivet-proxyd"
+path = "src/main.rs"
+
+[dependencies]
+# **Handed its listener**, like any application (`ADR-015` §5.2), and handed its
+# settings and its data directory the same way.
+#
+# **`serve` since 2026-09-05**, for `ADR-046` §4's gate. The whole server
+# configuration is now the SDK's `serve::Tls` — including the crypto provider,
+# which this crate used to name for itself with a comment saying it matched the
+# others. That was `ADR-011`'s second answer with a note attached, and
+# `rivet-sdk/src/serve/tls.rs`'s module header names this crate as the example.
+rivetos-sdk = { path = "../../rivet-sdk", features = ["serve"] }
+
+# **The routing table's shape.** `ADR-011` gives a fact one home, and three
+# programs need this one — the supervisor that writes the table, this proxy, and
+# any tool that reports what is routed.
+#
+# Linking a Rivet crate is allowed here for `rivet-fleetd`'s reason, stated in
+# its own manifest: `ADR-036`'s *"an application does not link `rivet-core`"* is
+# about a FOREIGN program written by somebody else for their own purpose. This
+# is Rivet's own machinery that happens to ship as an application.
+rivetos-core = { path = "../../rivet-core" }
+
+# **TLS on both sides, and the second side is not optional.** Reliquary is
+# HTTPS-only by design — its `SPEC-01` §4 has no plaintext listener and no
+# toggle for one, *"because a fallback is what gets used when the certificate is
+# inconvenient"* — so a proxy that assumed plaintext backends could not reach
+# it. The fleet authority is what makes verifying one cheap: both ends already
+# chain to it.
+#
+# Same version as `rivet-tls` and `rivet-fleetd` so there is one rustls in the
+# tree.
+rustls = { version = "0.23", default-features = false, features = ["std", "ring"] }
+# **For two functions.** `classify_caller` is the gate's second question: the
+# handshake says the fleet authority signed a caller's certificate, and this
+# says whether it is the operator's — one that names no host — or a machine's
+# (`.rulings/` R-187 D1). `subject_common_name` is the name the index shows so
+# an operator can see which certificate their browser sent; `ADR-028` §4.5 — it
+# is a LABEL and never an authorisation.
+#
+# It is `rivet-tls` rather than an X.509 crate because that crate already walks
+# a `TBSCertificate` by field lengths, and its own documentation carries the
+# reason not to search one for a byte pattern: a certificate holds the ISSUER's
+# common name first, so a search prints the fleet authority's name where the
+# caller's belongs.
+rivetos-tls = { path = "../../rivet-tls" }
+rustls-pemfile = "2"
+rustls-pki-types = "1"
+
+# **Passkeys beside client certificates** — `ADR-063` §4, `.rulings/` R-230.
+# `rivet-webauthn` makes every check a WebAuthn ceremony needs, with no I/O;
+# this crate keeps the challenges, sessions, files and randomness. `ring` is
+# named directly for its `SystemRandom` — challenges and session tokens — and is
+# the same `ring` `rustls` already links.
+rivetos-webauthn = { path = "../../rivet-webauthn" }
+ring = "0.17"
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring"] }
+
+tokio = { version = "1", features = [
+    "rt-multi-thread",
+    "macros",
+    "net",
+    "io-util",
+    "signal",
+    "time",
+] }
+
+# **The gate's own suite mints the certificates it needs** — `AGENTS.md` §8.3,
+# so nothing is committed and nothing reads a real key. `ADR-046` §4 is a claim
+# about three callers — one with no certificate, one signed by another
+# authority, one signed by the fleet's — and none of those three can be
+# composed by hand. Same version and the same reasoning as `rivet-sdk`'s, plus
+# `pem` because these tests hand rustls the PEM files a real application is
+# given rather than DER.
+#
+# `x509-parser`, and the `rcgen` feature of the same name, are for
+# `cmd/rivet-provision`'s authority module, which the tests compile in by path
+# (`src/main.rs`, `provision_ca`) so a caller can also present a certificate
+# minted the way provisioning mints one. Same versions as that crate.
+[dev-dependencies]
+rcgen = { version = "0.14", default-features = false, features = ["ring", "pem", "x509-parser"] }
+x509-parser = "0.18"
+
+[lints]
+workspace = true
+
+# `ADR-015` §3.3. Keys in `rivet_core::package::application::KEYS` order.
+[package.metadata.rivet]
+kind    = "daemon"
+restart = "on-failure"
+ready   = "listening"
+# **`none`, and it is honest.** Every backend is on `127.0.0.1` — this proxy
+# reaches applications on the same machine and calls nothing outside it. The
+# name it verifies them against is a NAME, not a lookup: it never resolves
+# anything.
+network = "none"
+# Where its certificate, the fleet root and the routing table live.
+state   = "private"
+# **443 — the machine's front door.** `R-152.1`, `ADR-046` §7, 2026-09-05.
+#
+# ~~8090, and NOT 443 — deliberately.~~ That held while the authentication
+# question was open: terminating TLS takes the browser's client certificate away
+# from everything behind it, so `/fleetd` could not have worked as a plain
+# transport proxy. `R-152` ruled B — this proxy terminates once and IS the gate —
+# and 443 follows from the ruling rather than from a packaging preference.
+#
+# **`rivet-fleetd` held 443 and now declares `tcp:4443`.** Two things cannot bind
+# one port and the SUPERVISOR is what binds them, so the collision is caught
+# before either program runs: *"this service declares listening sockets and this
+# machine could not open them, so it was NOT started"*. That is a journal record
+# rather than a debugging session, and it is also why deploying one of these two
+# without the other leaves the board with a front door and no administration
+# surface, or the reverse.
+#
+# Written `tcp:443`; it arrives named `tcp-443`, because `LISTEN_FDNAMES` is
+# colon-separated.
+#
+# **Bound on every address, and it needs no `:direct` to be.** The supervisor
+# binds loopback only for an application that declares a `proxy-path`
+# (`ADR-046` §7, `.rulings/` R-188), and this one is the proxy rather than
+# behind it. `:direct` without a `proxy-path` is refused.
+listen  = ["tcp:443"]
+library = []
+# The name on the certificate the applications behind this proxy present. Not
+# derived: appending `.local` to the kernel hostname would assume the mDNS
+# suffix, which `ADR-034` makes a fleet property.
+#
+# `operator-certificate`: `accept` (the default, when absent) or `refuse` — whether
+# the operator's client certificate still admits a caller beside a passkey
+# session (`ADR-046` §4, `.rulings/` R-234).
+#
+# `handshake-seconds`: how long a client has to finish its TLS handshake, a
+# whole number from 3 to 120, written as a string like every application
+# setting (`handshake-seconds = "30"`); 15 when absent (`ADR-046` §10).
+settings = ["upstream-name", "operator-certificate", "handshake-seconds"]

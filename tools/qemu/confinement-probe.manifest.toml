@@ -1,0 +1,13 @@
+# Rivet application manifest — ADR-015 §3.2.
+# Emitted by `cargo rivet package`; not written by hand.
+kind = "daemon"
+restart = "never"
+ready = "none"
+network = "none"
+state = "private"
+listen = []
+provides = []
+connects = []
+library = []
+devices = []
+settings = ["theme"]

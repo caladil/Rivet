@@ -1,0 +1,226 @@
+[package]
+# The PACKAGE is `rivetos-sdk` and the LIBRARY is `rivet_sdk`.
+# `ADR-033` §4: crates.io names and source names are different facts, and
+# rivet.gg already owns the `rivet-*` package namespace. Same split as
+# `rivetos-core`/`rivet_core`.
+name = "rivetos-sdk"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "What a Rivet hands an application, for the application's side. ADR-036."
+
+[lib]
+name = "rivet_sdk"
+path = "src/lib.rs"
+
+# **No RIVET crate. That is the design** — `ADR-036` §5, holding `rivet-sdk` to
+# the standard `ADR-014` §3.2 sets for `rivet-core`.
+#
+# An application is a FOREIGN PROGRAM. If it links `rivet-core` it drags the
+# operating system into a program that wanted a temperature reading. So this
+# crate re-declares the constants it needs and links no part of Rivet.
+#
+# **This table said "empty" until 2026-09-01, and the amendment is worth
+# stating rather than absorbing.** Receiving a display descriptor means
+# `recvmsg` and the `CMSG_*` layout (`PLAN.md` §106.2), which std does not
+# expose and which cannot be derived by hand safely — getting the alignment
+# wrong does not fail to compile, it reads the wrong offset and drops the
+# descriptor in silence.
+#
+# `libc` is a binding to the C library this program already links. It brings no
+# Rivet crate, adds nothing to an application's declared closure, and does not
+# weaken the property the paragraph above is actually about. **The invariant is
+# "no operating system in an application", not "no crates at all"** — and
+# saying so plainly is better than a comment that quietly stopped being true.
+#
+# **Amended again 2026-09-04, and this time it IS a Rivet crate** — `ADR-040`
+# §6, under `.rulings/` R-143. The optional `serve` feature depends on
+# `rivetos-tls`, which is `rustls` plus pinned-Ed25519 verification and depends
+# on nothing else here. It reaches only an application that asked to serve, and
+# the invariant above is the one that governs: a TLS helper is not an operating
+# system. Nothing on the default path changed — with no feature named, this
+# crate still links `libc` and nothing of Rivet's.
+[features]
+# **Drawing is opt-in** - `ADR-036` §5.4A, added 2026-09-01.
+#
+# A network service has no business linking `libdrm` or carrying a font
+# rasteriser, and `examples/templates/template-network-service` would gain both
+# if this were unconditional. A kiosk application asks for it:
+#
+#     rivetos-sdk = { version = "...", features = ["draw"] }
+default = []
+draw = ["dep:fontdue"]
+
+# **The display itself, split out of `draw` on 2026-09-01 so that drawing can be
+# TESTED.** `SPEC-04` §12.
+#
+# `screen.rs` links `libdrm`. Nothing else under `draw` does — the shapes, the
+# blending and the glyph rasteriser are pure Rust — but while the two shared one
+# feature, **enabling `draw` on any host without a cross-compiled `libdrm`
+# failed to link**, so a kiosk application's drawing could be compiled for a
+# board and never executed anywhere. The build container has no host `libdrm`,
+# which means `draw.rs`'s own tests could not run there either: `cargo test
+# --workspace` leaves `draw` off, so they were compiled by nothing.
+#
+# Splitting costs one word in a manifest — `features = ["screen"]` where it said
+# `["draw"]` — and buys `cargo test -p rivetos-sdk --features draw` on any
+# machine. That is the difference between a rounded corner that is asserted and
+# one that is only claimed.
+#
+# `screen` implies `draw`, because a screen with nothing to put on it is not
+# useful and every existing caller wanted both.
+screen = ["draw"]
+
+# **The screen a COMPOSITOR hands over** — `ADR-058` §5.4, ruled 2026-09-20.
+#
+# `screen` above is the lease: `libdrm`, a modeset and a page flip, which
+# `ADR-058` retired. This is its replacement, and an application moves between
+# them by changing which one it asks for — `crate::composited::take()` returns
+# the same five things `screen::Screen` does, so the drawing code is identical.
+#
+# **It is the third exception to this crate's empty-dependencies rule**, after
+# `draw` and `serve`, and it is paid for on the bargain the first one struck: a
+# feature nothing enables by default costs a network service nothing.
+#
+# **And it costs no C library.** `smithay-client-toolkit` with
+# `default-features = false` drops `xkbcommon` and `calloop`; what is left is
+# pure Rust, so an application built with this is still STATIC —
+# `cmd/rivet-launcher` proved it with `readelf -d` reporting no `NEEDED`
+# entries at all. `ADR-003` §5 survives the move, which `screen` could not say.
+#
+# `draw`, for the same reason `screen` implies it: a surface with nothing to
+# put on it is not useful.
+composited = ["draw", "dep:smithay-client-toolkit"]
+
+# **The same surface, drawn on the GPU** — `.rulings/` R-206, ruled 2026-09-20.
+#
+# `composited` above is the CPU path and costs no C library. This one links
+# `libgbm`, `libEGL` and `libGLESv2`, which ship shared-only, so it takes the
+# same `ADR-003` §5 exception `examples/probes/gpu-flip` and
+# `cmd/rivet-displayd` already take. All three are `PUBLIC_LIBRARIES`, so an
+# application's `library = []` stays true and its closure stays empty.
+#
+# **It implies `composited` rather than replacing it.** An application that
+# draws backgrounds on the GPU still wants the CPU surface for the machine with
+# no V3D — R-206 D3, the x86 target in `rivet-long-term-targets` — so the two
+# are a choice made at runtime, not at compile time.
+#
+# `wayland-protocols` is direct and not through the toolkit:
+# `smithay-client-toolkit` has no `zwp_linux_dmabuf` binding, and the protocol
+# is stable rather than unstable despite the `zv1` in its name.
+composited-gpu = [
+    "composited",
+    "dep:wayland-protocols",
+]
+
+# **Serving is opt-in, and it is the exact mirror of `draw`** — `ADR-040`,
+# ruled 2026-09-04 (`.rulings/` R-143).
+#
+# The sentence above says a network service has no business linking `libdrm` or
+# carrying a font rasteriser. **A kiosk application has no business linking
+# `rustls`**, and `examples/templates/template-kiosk` would gain it, plus `ring`
+# and a C cross-compiler at the toolchain boundary, if this were unconditional.
+# A network service asks for it:
+#
+#     rivetos-sdk = { version = "...", features = ["serve"] }
+#
+# **Feature unification is harmless here, and that is worth stating** because
+# the opposite case is written down elsewhere in this project. Reliquary could
+# not use a feature to keep `ignition` OUT of its Rivet composition root, since
+# absence cannot be guaranteed by something another crate can switch on. That is
+# a feature used as an *enforcement boundary*. This one is an **additive
+# capability**: the worst unification can do is link `rustls` into a program
+# that did not ask, which costs bytes and breaks nothing.
+serve = ["dep:rustls", "dep:rustls-pemfile", "dep:rivetos-tls"]
+
+# **Reading BLE advertisements is opt-in** — `ADR-041`, ruled 2026-09-05
+# (`.rulings/` R-144).
+#
+# **And it gates no dependency, unlike the three above.** That is stated here
+# rather than glossed: `draw` keeps `fontdue` out of a network service and
+# `serve` keeps `rustls` out of a kiosk, and this keeps out about two hundred
+# lines of `std`. What it buys is that the surface is absent from an application
+# that never asked for it, and that the feature and the manifest's
+# `connects = ["rivet-bluetoothd:advertisements"]` are written in the same
+# sitting. The ruling asked for an opt-in; claiming it saves what `draw` saves
+# would be overstating it.
+bluetooth = []
+
+[dependencies]
+libc = "0.2"
+
+# **The `serve` feature's three, and none of them is linked without it.**
+#
+# Same rustls version and the same feature list as `rivet-tls`, `rivet-fleetd`
+# and `rivet-proxyd`, so there is one rustls in the tree. **No `tls12`** —
+# `.rulings/` R-140. Cargo unifies features across a build, so this list has to
+# agree with the other three or the feature comes back in through whichever one
+# disagrees and no single manifest looks wrong.
+rustls = { version = "0.23", default-features = false, features = [
+    "std",
+    "ring",
+], optional = true }
+rustls-pemfile = { version = "2", optional = true }
+
+# **The `composited` feature's one, and it is not linked without it.**
+#
+# `ADR-058` §5.4. `default-features = false` is the whole of why this is
+# affordable: the default set pulls `xkbcommon` (a C library) and `calloop`,
+# and what remains is pure Rust — so an application that asks for a surface is
+# still a static binary. `cmd/rivet-launcher` is the proof and was written
+# first for exactly that reason.
+smithay-client-toolkit = { version = "0.19", default-features = false, optional = true }
+
+# **`zwp_linux_dmabuf_v1`, and nothing else from this crate** — the `composited-
+# gpu` feature's one dependency. The toolkit above does not bind this protocol,
+# and it is how a GPU buffer crosses to the compositor without a copy.
+wayland-protocols = { version = "0.32", default-features = false, features = [
+    "client",
+], optional = true }
+
+# **A Rivet crate, optionally, and `ADR-040` §6 is the argument for it.**
+#
+# `ADR-036` §5 rules that this crate depends on no Rivet crate, and the reason
+# it gives is that an application is a foreign program which must not drag the
+# operating system in. `rivet-tls` is not the operating system: it is `rustls`
+# plus pinned-Ed25519 verification, it depends on no other crate here, and it is
+# reached only by an application that asked for `serve`.
+#
+# The invariant this crate's own `libc` note states is *"no operating system in
+# an application, not no crates at all"*, and the alternative is worse than the
+# edge. A second answer to `CryptoProvider` already exists — `rivet-proxyd`
+# wrote `ring::default_provider()` with a comment saying it matched the others —
+# and `ADR-011` is about exactly that.
+rivetos-tls = { path = "../rivet-tls", optional = true }
+
+# **The type, for `draw`** - the same argument `cmd/rivet-launcher` made when it
+# took the first cargo dependency in a Rivet binary (`PLAN.md` §104.38): a
+# bitmap atlas is locked to the sizes chosen the day it was baked, and the
+# maintainer's stated plan is fonts installable from Google Fonts.
+#
+# `fontdue` is pure Rust with no `unsafe` and no C, so it costs nothing at the
+# cross-compilation boundary.
+fontdue = { version = "0.9", optional = true }
+
+# **`rivetos-core` appears here and nowhere else** — `ADR-036` §8.3.
+#
+# Dev-dependencies are not linked into consumers, so an application depending on
+# `rivetos-sdk` never sees `rivet_core`. The edge exists for exactly one reason:
+# `tests/agreement.rs` proves the two agree, which is what buys the right to
+# re-declare rather than import.
+[dev-dependencies]
+rivetos-core = { path = "../rivet-core" }
+
+# **Certificates for `serve`'s own tests, minted into a temporary directory.**
+# `AGENTS.md` §8.3: the suite mints its own material precisely so nothing has to
+# be committed. Same version as `rivet-tls`'s, which mints the same way for the
+# same reason, plus `pem` — that crate's tests hand rustls DER and these hand it
+# the PEM files a real application is given, so the encoder has to be here.
+# Unconditional because dev-dependencies cannot be gated on a feature; it is
+# compiled by the test harness and linked into no consumer.
+rcgen = { version = "0.14", default-features = false, features = ["ring", "pem"] }
+
+[lints]
+workspace = true

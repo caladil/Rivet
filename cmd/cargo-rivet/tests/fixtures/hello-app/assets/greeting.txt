@@ -1,0 +1,5 @@
+Hand-composed, and its contents are not the point.
+
+This file exists so that `cargo rivet package` has something in `assets/` to
+walk. `tests/roundtrip.rs` asserts that it arrives in the artifact as a member
+named by its own filename, with no `--asset` argument anywhere.

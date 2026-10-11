@@ -1,0 +1,55 @@
+# **A kiosk application, ready to draw.** `ADR-036` §6.1.
+#
+# The network-service template's twin. What it solves for you is the plumbing
+# that has nothing to do with your application: getting a display, putting
+# pixels on it, and the three linker flags in `.cargo/config.toml` that a
+# program linking `libdrm` needs on this target.
+#
+# Copy the directory, rename the package, and write `src/main.rs`.
+[workspace]
+
+[package]
+name = "template-kiosk"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[package.metadata.rivet]
+# **There is no `kind = "kiosk"`.** `ProgramKind` is daemon | oneshot |
+# socket-activated, and the thing that makes this a kiosk application is the
+# line below: `devices = ["display"]`. A program that declares a display is
+# OFFERED on the launcher's menu (`ADR-036` §8A).
+kind    = "daemon"
+restart = "always"
+ready   = "none"
+
+# **The declaration that gets you a screen.** Without it the supervisor grants
+# nothing, `RIVET_DISPLAY` is unset, and `rivet_sdk::screen::handed()` says so
+# rather than crashing.
+#
+# `input` is NOT declared here on purpose: the launcher keeps reading the pad
+# while you hold the display, which is how a person gets back out of your
+# application. Declare it only if you need raw events of your own.
+devices = ["display"]
+
+# **Empty, and it stays empty.** `libdrm.so.2`, `libc.so` and `libgcc_s.so.1`
+# are in `rivet_core::package::library::PUBLIC_LIBRARIES` — the platform
+# promises them, so they are not part of your closure. `cargo rivet package` checks this and will
+# tell you if you have picked up something that is.
+library = []
+
+# `network = "egress"` here if you fetch anything. NOTE, and the machine says
+# this too at install time: ADR-023 IS NOT BUILT YET, so today every
+# application has unrestricted network whatever it declares. Declare honestly
+# anyway — the day it is enforced, an honest manifest keeps working.
+network = "none"
+
+[dependencies]
+# `draw` is opt-in: it brings `libdrm` and a font rasteriser, which a network
+# service has no business linking.
+rivetos-sdk = { path = "../../../rivet-sdk", features = ["screen"] }
+
+[profile.release]
+opt-level = "z"
+lto = true

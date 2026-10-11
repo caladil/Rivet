@@ -1,0 +1,368 @@
+# Rivet's Buildroot configuration.
+#
+# Derived from Buildroot's own `configs/raspberrypi4_64_defconfig`, with the
+# changes below. Read `tools/buildroot/README.md` for the reasoning at length;
+# this file carries the short form beside each line, because a defconfig read in
+# a diff is where the reasoning is actually needed.
+#
+# `ADR-009` §6 draws the boundary this file must not cross: **Buildroot produces
+# a bag of correctly-built binaries and a toolchain; it does not decide what the
+# filesystem looks like.** Everything the shipped Pi 4 defconfig contributes to
+# *image assembly* is therefore deleted here rather than adapted — the rootfs
+# skeleton, the ext2 image, genimage, the Pi boot firmware, the post-build and
+# post-image hooks. Rivet's own `cmd/rivet-image` owns all of that
+# (`ADR-008`), and if Buildroot's rootfs conventions ever reach the image the
+# boundary has been crossed: those conventions are the FHS, which `ADR-008` §3
+# rejects.
+
+# --- Target: the Pi 4's core (ADR-002 §2) ---------------------------------
+BR2_aarch64=y
+BR2_cortex_a72=y
+BR2_ARM_FPU_VFPV4=y
+
+# --- Toolchain: THE one-symbol change, and the trap ADR-009 §6 named -------
+#
+# Buildroot's `raspberrypi4_64_defconfig` selects
+# `BR2_TOOLCHAIN_EXTERNAL_BOOTLIN_AARCH64_GLIBC_STABLE` — **glibc**. Confirmed
+# by reading the shipped file in Buildroot 2026.02.3, which is still exactly as
+# `ADR-009` §6 recorded it on 2026-08-22.
+#
+# Taking that defconfig unmodified would silently produce a glibc image, which
+# `ADR-003` §4 forbids. It would not fail; it would succeed and be wrong, which
+# is the failure `AGENTS.md` §5 is about. So the symbol is swapped for the
+# `_MUSL_` variant, and this comment exists so nobody "fixes" it back when a
+# package fails to build against musl.
+#
+# External rather than internal: an external toolchain is downloaded prebuilt,
+# so nothing here builds a cross-GCC. `ADR-009` §6's ladder puts musl
+# cross-toolchains squarely in "fiddly domain knowledge we do not have".
+BR2_TOOLCHAIN_EXTERNAL=y
+BR2_TOOLCHAIN_EXTERNAL_BOOTLIN=y
+BR2_TOOLCHAIN_EXTERNAL_BOOTLIN_AARCH64_MUSL_STABLE=y
+
+# --- ADR-003 §4: ~~every C component in the image is static~~ --------------
+# ~~Not a size preference. `ADR-008` has no dynamic loader story and no
+# /lib/ld-musl-aarch64.so.1 in the image, so a dynamically linked mechanism
+# would build cleanly and then fail to exec on the target with a message about
+# a missing interpreter — a failure that does not appear until the board.~~
+#
+# **AMENDED 2026-08-31, and the paragraph above is struck because its PREMISE
+# EXPIRED rather than because the maintainer overrode it.** Shared Rivets
+# (`ADR-029`'s library kind, `SPEC-02`) put `/lib/ld-musl-aarch64.so.1` on the
+# image and `tools/card/build.sh` verifies it is there — *"verified on the
+# image: /lib/ld-musl-aarch64.so.1"*. So this project HAS a dynamic loader
+# story, has had one for days, and the sentence saying it does not was true
+# when written and false when read.
+#
+# **What forced the question: Mesa.** The maintainer ruled on 2026-08-31 that
+# Mesa is the right answer for the GPU, and `package/mesa3d/Config.in` carries
+# two hard dependencies that cannot be worked around:
+#
+#     depends on !BR2_STATIC_LIBS
+#     depends on BR2_INSTALL_LIBSTDCPP
+#
+# libEGL, libgbm, libGLESv2 and the Gallium driver are shared objects; there is
+# no static Mesa to ask for. `PLAN.md` §104.17.
+#
+# **`SHARED_STATIC` and not `SHARED`.** Buildroot builds both variants, so a
+# package that wants to link statically still can, and the change is the
+# smallest one that admits Mesa. Rivet's OWN binaries are unaffected either
+# way: `rivet-initd`, `rivet-sysd` and the rest are built by cargo against
+# aarch64-unknown-linux-musl, which Buildroot does not link.
+#
+# **The hazard this creates, stated before it is met.** Buildroot's other
+# packages — busybox, wpa_supplicant, strace, gdbserver, nu — will
+# now prefer shared, and the card build picks specific binaries out of the
+# Buildroot target into /system/bin. A binary that became dynamic needs its
+# NEEDED libraries present on the image, and nothing in `tools/card/build.sh`
+# checks that today: it verifies the binaries EXIST, not that they can exec.
+# That is the same shape as the struck paragraph's own warning — "a failure
+# that does not appear until the board" — pointed at a different mechanism, and
+# it is why the first build after this change is audited rather than shipped.
+BR2_SHARED_STATIC_LIBS=y
+
+# `depends on BR2_INSTALL_LIBSTDCPP` — Mesa is C++.
+BR2_INSTALL_LIBSTDCPP=y
+
+# --- ADR-003 §6: the GPU ---------------------------------------------------
+# **Ruled by the maintainer on 2026-08-31**, after `§104.13` put VC4's KMS
+# driver on a board: Mesa is the answer for the GPU, and it is to be built
+# (`.rulings/` R-355).
+#
+# `MESA3D_GALLIUM_DRIVER_V3D` is the one to ask for and it pulls the rest:
+# `select BR2_PACKAGE_MESA3D_GALLIUM_DRIVER_VC4 # runtime` and
+# `select BR2_PACKAGE_MESA3D_OPENGL_EGL`. Its help text states the kernel
+# requirement in the same terms `§104.8` and `§104.12` arrived at
+# independently:
+#
+#     It requires a kernel 4.18+ with DRM V3D support enabled:
+#       - CONFIG_DRM_V3D
+#       - CONFIG_DRM_VC4
+#
+# Both are `=y` in `tools/buildroot/linux/rivet.config`, verified in the merged
+# .config after a build rather than asked for and assumed (`§104.8.3` item 3).
+#
+# **GBM and OpenGL ES are named explicitly** rather than left to whatever the
+# driver selects. A DRM-direct renderer opens `/dev/dri/card0`, allocates
+# through GBM and draws with GLES2 — that is the whole path, and a build that
+# produced EGL without GBM would fail at the allocate rather than at the link.
+BR2_PACKAGE_MESA3D=y
+BR2_PACKAGE_MESA3D_GALLIUM_DRIVER_V3D=y
+BR2_PACKAGE_MESA3D_GBM=y
+BR2_PACKAGE_MESA3D_OPENGL_ES=y
+
+# **The one library Smithay needs that this tree did not have** — `ADR-058`
+# §5.1, added 2026-09-20 and found by a LINK rather than by reading.
+#
+# `cmd/rivet-displayd` is a Wayland compositor built on Smithay, and Smithay
+# depends on the `xkbcommon` crate **unconditionally** — it is not behind a
+# feature, so no compositor built on it links without this. Every other library
+# that build needs was already here: `libgbm`, `libEGL`, `libGLESv2` and
+# `libdrm` came with Mesa, and the link named exactly one missing file.
+#
+# **`xkeyboard-config` is deliberately NOT enabled with it.** That package is
+# the ~5 MB keymap dataset `xkb_keymap_new_from_names` reads, and it is needed
+# only when something actually compiles a keymap from layout names. Nothing
+# does yet: `rivet-displayd` creates a seat with no keyboard on it, and the
+# `ADR-015` gesture vocabulary still travels on `rivet_core::input`. The day a
+# client wants `wl_keyboard`, the choice is this package against an embedded
+# keymap string, and it should be made by measuring both against `ADR-018` §4's
+# slot budget rather than by adding it now on the chance it is wanted.
+BR2_PACKAGE_LIBXKBCOMMON=y
+
+# --- Buildroot's own init and network config are not Rivet's ------------
+# `ADR-006`/`ADR-007`: Rivet has one configuration document and generates any
+# /etc it needs as a read-only view (`ADR-007` §3.6.2). Buildroot's BR2_INIT_*
+# and BR2_SYSTEM_DHCP write inittab and interface files into a rootfs Rivet
+# never uses. `rivet-initd` is PID 1 (`ADR-009` §3.1 — "this is the project").
+BR2_INIT_NONE=y
+
+# --- Source verification --------------------------------------------------
+BR2_DOWNLOAD_FORCE_CHECK_HASHES=y
+
+# --- Kernel ---------------------------------------------------------------
+# From the Raspberry Pi kernel tree rather than mainline, exactly as
+# `ADR-024` §5 rules. The tarball is pinned by commit sha, not by a branch name:
+# a branch moves, a sha does not, and a kernel that changed underneath the build
+# would make every earlier boot log a claim about a kernel that no longer
+# exists. The sha is the one Buildroot 2026.02.3's own Pi 4 defconfig pins, so
+# it is a revision Buildroot's CI has actually built.
+BR2_LINUX_KERNEL=y
+BR2_LINUX_KERNEL_CUSTOM_TARBALL=y
+BR2_LINUX_KERNEL_CUSTOM_TARBALL_LOCATION="$(call github,raspberrypi,linux,21b410140c47ffab5668399f6f143c7d7b935c8b)/linux-21b410140c47ffab5668399f6f143c7d7b935c8b.tar.gz"
+BR2_LINUX_KERNEL_DEFCONFIG="bcm2711"
+
+# `ADR-024` §5: a fragment, not a full .config. Two files, and the split is
+# deliberate — `rivet.config` is §3's product requirements, `qemu-virt.config`
+# is what `ADR-026`'s development loop needs. A future stripping pass
+# (`ADR-024` §8) has to be able to see which is which without reading a diff.
+BR2_LINUX_KERNEL_CONFIG_FRAGMENT_FILES="$(BR2_EXTERNAL_RIVET_PATH)/linux/rivet.config $(BR2_EXTERNAL_RIVET_PATH)/linux/qemu-virt.config"
+
+# The board's device tree. Not used by `qemu-system-aarch64 -M virt`, which
+# generates its own — kept because the same kernel is meant to reach hardware,
+# and `ADR-024` §9 item 2 has device trees and overlays as an open question that
+# will need this build to answer it.
+BR2_LINUX_KERNEL_DTS_SUPPORT=y
+BR2_LINUX_KERNEL_INTREE_DTS_NAME="broadcom/bcm2711-rpi-4-b"
+BR2_LINUX_KERNEL_NEEDS_HOST_OPENSSL=y
+
+# --- The C mechanisms (ADR-009 §6, ADR-005 §3) ----------------------------
+# The only reason Buildroot is here at all, alongside the toolchain. Nothing
+# below is *integrated* by this file — Buildroot builds them, Rivet's image
+# assembly decides whether and where they land (`ADR-009` §6's boundary again).
+#
+# BusyBox is present for `udhcpc` specifically. `ADR-005` §3 tracks the applet
+# scoreboard; this is not an endorsement of the other three hundred.
+#
+# **And since 2026-08-30 that is enforced rather than asserted.** The line above
+# was true of the INTENT and not of the BUILD: BusyBox was compiled with
+# Buildroot's stock configuration, 561 symbols on, and only Rivet's image
+# assembly kept the result off a card. `busybox/busybox.config` cuts it to one
+# applet — `udhcpc` — and the file carries the reasoning, including why BusyBox
+# is back at all after `ADR-005` §5.4.2 walked it out.
+#
+# The check is `busybox --list` on the built binary, not this comment.
+BR2_PACKAGE_BUSYBOX=y
+BR2_PACKAGE_BUSYBOX_SHOW_OTHERS=y
+BR2_PACKAGE_BUSYBOX_CONFIG="$(BR2_EXTERNAL_RIVET_PATH)/busybox/busybox.config"
+
+# --- What a program's PATH is (ruled by the maintainer, 2026-08-24) --------
+#
+# `/system/bin` and nothing else, and the "nothing else" is the deliberate half.
+#
+# Buildroot's default is `/bin:/sbin:/usr/bin:/usr/sbin`. **A Rivet image has
+# none of those four directories** — `ADR-008` §3 rejects the FHS and puts every
+# binary in the image, Rust and C alike, in `/system/bin`. Naming a directory
+# that does not exist in a lookup path is a claim about the layout that is
+# false, and it was the reason `rivet get log` answered "Command `rivet` not
+# found" on a machine where the journal was sitting right there.
+#
+# It is a Buildroot-wide symbol, and nothing else in this configuration consumes
+# it: `BR2_INIT_NONE` means Buildroot's skeleton `/etc/profile` — its only other
+# consumer — is never in a Rivet image.
+BR2_SYSTEM_DEFAULT_PATH="/system/bin"
+
+# --- git, for `rivet-gitd` (PLAN.md §23.3, ruled 2026-08-26) --------------
+#
+# **Vendored rather than written**, and `PLAN.md` §43 is the survey that decided
+# it: `gix` does not have a receive-pack side, and the two ways to get one in
+# Rust cost 93+ crates or a bet on a nine-day-old crate with twenty downloads.
+# This is the rung-2 slot ADR-009 §3 describes — somebody else's well-tested C, built by
+# Buildroot, exec'd behind authentication that already happened (`ADR-009` §6).
+#
+# **The POSIX worry was measured rather than assumed**, because git is the most
+# FHS-assuming program imaginable and Rivet has no FHS, no shell and no helper
+# programs. `PLAN.md` §43.6: every subprocess `receive-pack` spawns is
+# `git <builtin>` re-execing the same binary — `unpack-objects`, `rev-list`,
+# `for-each-ref` — and a real push was landed into a repository served by a
+# LONE git binary with nothing else on `PATH` and `HOME=/nonexistent`. The
+# compiled-in `--exec-path` did not exist in that test and did not matter.
+#
+# Only `zlib` is taken. Every optional dependency is off and each is a decision:
+#
+#   openssl   git needs it for https transport and for SHA-1 acceleration.
+#             Rivet's git is fronted by `rivet-mcpd` (ADR-035 §4), so the
+#             transport half is dead weight; ADR-009 §4's rule about carrying
+#             what nothing uses applies.
+#   libcurl   the https/dumb-http transports. Same argument, and it is the
+#             largest of the four.
+#   expat     git-http-push only. Unreachable without curl.
+#   pcre2     `git grep -P`. A server does not grep.
+#   tcl       gitk and git-gui. There is no display.
+BR2_PACKAGE_GIT=y
+
+# --- Wireless: the supplicant and the firmware (ADR-004) -------------------
+#
+# Added 2026-08-30. `ADR-004` §3 adopted `wpa_supplicant` as a **permanent Tier
+# C dependency with no replacement intended**, and the argument there is worth
+# repeating here because it is the opposite of the usual one: depending on it is
+# what keeps Rivet on WPA3-SAE, 802.11r/k/v roaming and enterprise EAP at no
+# ongoing cost. Implementing our own is what would strand the project on
+# WPA2-PSK permanently. **The C dependency is the future-proofing.**
+#
+# NL80211 is the kernel interface; WEXT is the deprecated one and is left off.
+# CTRL_IFACE is not optional for Rivet: `ADR-004` §4 rules the boundary is the
+# control SOCKET rather than an FFI linkage, and `cmd/rivet-netd` drives it. A
+# supplicant built without it would build cleanly and be unusable.
+#
+# WPA3 is on for §3.1's currency argument — it is the whole reason this is a
+# dependency rather than an implementation.
+#
+# **DBUS is deliberately absent**, and `ADR-004` §3.2 is the ruling: `iwd` was
+# rejected precisely because its control interface is D-Bus, and adding a
+# message bus to configure wireless is a worse trade than a larger supplicant.
+# Turning it on here would import the thing that decided the question.
+#
+# `wpa_cli` is included as a BRING-UP tool, and the reason is method rather than
+# convenience: it proves the C side associates independently of Rivet's own
+# client, so a failure has one candidate cause instead of two. That matters when
+# the feedback loop is an image cycle. It is a fair thing to drop later.
+BR2_PACKAGE_WPA_SUPPLICANT=y
+BR2_PACKAGE_WPA_SUPPLICANT_NL80211=y
+BR2_PACKAGE_WPA_SUPPLICANT_CTRL_IFACE=y
+BR2_PACKAGE_WPA_SUPPLICANT_WPA3=y
+BR2_PACKAGE_WPA_SUPPLICANT_CLI=y
+
+# The CYW43455's firmware. `ADR-004` §8 — three files, not two, and a missing
+# `clm_blob` is a QUIET failure that makes association misbehave rather than
+# fail. §8.1 read the names off a real board on 2026-08-22.
+#
+# **This package installs symlinks, not files**, which §8.1 predicted and the
+# package's own `.mk` confirms: `cp --remove-destination --no-dereference` puts
+# the payloads under `lib/firmware/cypress/cyfmac*` and leaves
+# `lib/firmware/brcm/brcmfmac*` pointing at them. `ADR-008` has no FHS and
+# `cmd/rivet-image` copies what it is told to, so **resolving those links into
+# real files under the names the driver requests is image assembly's job** —
+# `ADR-009` §6's boundary, and a link shipped as a link would dangle.
+#
+# ~~The BT half is not taken: there is no Bluetooth requirement anywhere in the
+# record, and `ADR-009` §4's rule about carrying what nothing uses applies.~~
+#
+# **SUPERSEDED 2026-09-05, and it was right when it was written** — `.rulings/`
+# R-144, `ADR-041`. The requirement now exists because the maintainer created
+# it: a Rivet reads BLE advertisements, and the radio that hears them is the
+# Bluetooth half of the same CYW43455 the wireless half above is firmware for.
+# `ADR-009` §4 was applied correctly to the facts of the day; struck rather
+# than deleted per `AGENTS.md` §2 rule 3.
+#
+# **The same symlink caveat applies, and one more.** The package installs
+# `lib/firmware/brcm/BCM4345C0.raspberrypi,4-model-b.hcd` as a link to
+# `BCM4345C0.hcd`, so image assembly resolves it exactly as it does the
+# wireless three. And unlike those three this one is NOT compiled into the
+# kernel: `hci_bcm` requests its patchram from `hdev->setup`, which runs when
+# `rivet-bluetoothd` opens the controller — long after the root filesystem is
+# mounted — so the 119 ms race that forced `CONFIG_EXTRA_FIRMWARE` on the
+# wireless firmware does not exist here. `tools/buildroot/linux/rivet.config`
+# carries that reasoning beside the driver.
+#
+# **The name above is documentation-derived and is recorded as such**
+# (`AGENTS.md` §5, `docs/design-candidates/Bluetooth.md` §3.4). No board has
+# yet asked for it. One boot with `hci_uart` in the kernel closes that.
+BR2_PACKAGE_BRCMFMAC_SDIO_FIRMWARE_RPI=y
+BR2_PACKAGE_BRCMFMAC_SDIO_FIRMWARE_RPI_WIFI=y
+BR2_PACKAGE_BRCMFMAC_SDIO_FIRMWARE_RPI_BT=y
+
+# The regulatory database, which failed on the board for the SAME reason the
+# wireless firmware did and 100 ms earlier: `cfg80211: failed to load
+# regulatory.db` at 2.65 s, root mounted at 2.87 s.
+#
+# Without it `cfg80211` falls back to the world-roaming rules — the most
+# restrictive channel set and TX power there is, which works and is not what
+# this board's country allows. It is listed in Buildroot's own
+# `LINUX_DEPENDENCIES`, so the kernel already waits for it.
+BR2_PACKAGE_WIRELESS_REGDB=y
+
+# --- The debugging mechanisms (ADR-005 §7) --------------------------------
+#
+# `gdbserver` and `strace`. Both are Buildroot packages that already existed in
+# the tree; neither is a subsystem this project writes, and that is the whole
+# argument for having them — `ADR-009` §6 ruled Buildroot in for exactly this.
+#
+# **`BR2_PACKAGE_GDB` here does NOT put a debugger on the target.** The symbol
+# is the package; `BR2_PACKAGE_GDB_DEBUGGER` would be the full `gdb`, and it is
+# deliberately absent. What is built is the stub, which speaks the remote serial
+# protocol to a cross `gdb` running on the development host. `package/gdb/
+# Config.in`'s own help says so: *"For embedded development, the most common
+# solution is to build only 'gdbserver' for the target, and use a cross-gdb on
+# the host."*
+#
+# The host half needs nothing built: the Bootlin external toolchain ships
+# `aarch64-linux-gdb` (GDB 15.2), and Buildroot symlinks it into `host/bin`.
+# `BR2_PACKAGE_GDB` defaults to the same 15.2 for the target — read out of
+# `package/gdb/Config.in.host`, where `BR2_GDB_VERSION` is `"15.2" if
+# BR2_GDB_VERSION_15 || (!BR2_PACKAGE_HOST_GDB && BR2_TOOLCHAIN_GCC_AT_LEAST_9)`
+# — so the two halves match without either being pinned here.
+#
+# **`BR2_TOOLCHAIN_EXTERNAL_GDB_SERVER_COPY` is the trap, and it is left off.**
+# That symbol copies the toolchain's *prebuilt* gdbserver instead of building
+# one, which sounds strictly cheaper. It is not: the Bootlin binary at
+# `host/opt/ext-toolchain/aarch64-buildroot-linux-musl/debug-root/usr/bin/
+# gdbserver` is `ELF 64-bit LSB pie executable … dynamically linked, interpreter
+# /lib/ld-musl-aarch64.so.1`, NEEDED `libstdc++.so.6` and `libgcc_s.so.1`.
+# `ADR-003` §4 forbids that and `ADR-008` ships no dynamic loader, so it would
+# build cleanly, install cleanly, and fail at `exec` on the board naming an
+# interpreter rather than the binary. Building the package under
+# `BR2_STATIC_LIBS=y` is what produces a binary that can run.
+BR2_PACKAGE_GDB=y
+BR2_PACKAGE_GDB_SERVER=y
+
+# strace answers the question the journal cannot: *which syscall did the C
+# mechanism actually fail on*. Its aarch64/musl dependency is kernel headers
+# >= 5.0 (`package/strace/Config.in`); this toolchain reports
+# BR2_TOOLCHAIN_HEADERS_AT_LEAST="5.4", so it is satisfied.
+BR2_PACKAGE_STRACE=y
+
+# **`ltrace` is not here and cannot be.** `package/ltrace/Config.in` carries two
+# independent hard dependencies Rivet fails: `depends on !BR2_STATIC_LIBS`
+# and `depends on BR2_TOOLCHAIN_USES_UCLIBC || BR2_TOOLCHAIN_USES_GLIBC`, both
+# inherited from elfutils. Rivet is static musl by `ADR-003` §4, so kconfig
+# will not offer the symbol at all — and `ltrace` traces *dynamic library* calls,
+# which a fully static image has none of. It is recorded here rather than left
+# absent because `AGENTS.md` §7 makes an absence a claim.
+
+# --- No image assembly. See the header. -----------------------------------
+# Buildroot defaults BR2_TARGET_ROOTFS_TAR on, so it has to be turned off
+# explicitly. The two lines below are kconfig's "not set" form and are load
+# bearing, not commentary.
+# BR2_TARGET_ROOTFS_TAR is not set
+# BR2_TARGET_ROOTFS_EXT2 is not set

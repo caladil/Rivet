@@ -1,0 +1,90 @@
+# **The launcher, as a Rivet APPLICATION.** `PLAN.md` §104.36, §105.3.
+#
+# `cmd/rivet-launcher` is designed to be an **image service** — that is
+# `docs/design-candidates/rivet-launcher.md` Q1's answer — and shipping it as an
+# application is a testing convenience so it can be iterated on without building
+# a card. **Nothing here is built by cargo.** The binary comes from
+# `cargo build -p rivetos-launcher`; this file exists only to be the manifest
+# `cargo rivet package` reads.
+#
+# ## Why this file is TRACKED, and what it cost to learn
+#
+# It lived in `.launcher-pkg/` from the day it was written until 2026-09-04, and
+# `.gitignore` excludes that directory — so the manifest was on exactly one disk
+# in the world, with no history and no way for a second checkout to have it.
+#
+# `.rulings/` R-138 is what made that dangerous rather than untidy. The
+# supervisor decides whether an application is the display **arbiter** or a
+# **lessee** from `connects` below: an application that declares the kiosk
+# endpoint is the arbiter and is granted the card node; one that does not is a
+# lessee and is granted only a render node. So losing this line does not produce
+# a build error or a refusal — `rivet-launcher` silently becomes a lessee, is
+# handed no card, draws nothing, and the screen goes black with **nothing in the
+# source tree to explain why**. `AGENTS.md` §3 ranks the gates: a fact that only
+# an untracked file carries is weaker than convention.
+#
+# ## The deploy recipe, which this manifest is one third of
+#
+#   cargo build -p rivetos-launcher --release --target aarch64-unknown-linux-musl
+#   "$RIVET_STRIP" -o deploy/launcher/rivet-launcher \
+#       target/aarch64-unknown-linux-musl/release/rivet-launcher
+#   cd deploy/launcher && cargo rivet package --binary rivet-launcher
+#
+# `$RIVET_STRIP` comes from `tools/toolchain/env.sh`. **The strip is not
+# enforced and is still not optional in practice**: `cargo rivet package`
+# refuses only past `MAX_PROGRAM_BYTES` (16 MiB), and an unstripped launcher is
+# about 10.6 MB — so it packages, prints a `symbols` line, and then pays
+# `ADR-015` §4.2's whole-program hash on every start and restart, on a Pi,
+# off an SD card. The binary lands beside this file and is git-ignored, exactly
+# as `deploy/aura/renderer/aura-renderer` is.
+[workspace]
+
+[package]
+name = "rivet-launcher"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[package.metadata.rivet]
+kind    = "daemon"
+restart = "always"
+ready   = "none"
+# Static musl, and still static after `ADR-058` §4.1 made this a Wayland
+# client: `smithay-client-toolkit` with `default-features = false` is pure
+# Rust. No loader, no closure to declare.
+library = []
+# **`display` is GONE** — `ADR-058` §4.1, 2026-09-20, and its absence is the
+# whole point of that ADR. A Wayland client needs no DRM node, no render node,
+# no framebuffer and none of §1.1's five confinement grants; it draws into a
+# shared-memory buffer the compositor handed it.
+#
+# `input` stays because the launcher reads `/dev/input/event*` itself for the
+# `ADR-015` gesture vocabulary.
+devices = ["input"]
+
+# **The kiosk control socket** — `ADR-015` §5.3's grant, the narrow kiosk
+# socket ruled 2026-09-01 (`ADR-036` §5.4). One application per endpoint, and this is it: the supervisor chowns
+# the socket to this uid and nothing else on the machine can open it.
+#
+# ~~And since `.rulings/` R-138 this line also decides what device node the
+# launcher gets.~~ **No longer true since `ADR-058` §4.1, 2026-09-20.** The
+# display arbiter is now whoever PROVIDES `socket:wayland` — the compositor —
+# and this line means only what it says: this program selects applications.
+#
+# **`rivet-displayd:wayland` is the second one, and it is how the launcher
+# reaches the screen at all.** Declaring it is what makes a missing compositor
+# a NAMED failure: an endpoint nobody provides is something the supervisor can
+# report, where a launcher that simply found no socket would draw nothing and
+# say nothing — the silent failure the paragraph above was written about, now
+# guarded from the other side.
+connects = ["rivet-sysd:kiosk", "rivet-displayd:wayland", "rivet-displayd:capture"]
+
+# **The agent's press** — `ADR-012` §9. The supervisor binds this and, because
+# nothing on the machine declares `connects = ["rivet-launcher:input"]`, grants
+# it to nobody: it stays `0600 root:root` and only the control plane reaches it.
+# That is the grant mechanism protecting this BY DECLINING TO GRANT, which is a
+# better answer than a permission invented for the occasion.
+provides = ["socket:input"]
+
+[dependencies]

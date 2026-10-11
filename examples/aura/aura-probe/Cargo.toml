@@ -1,0 +1,53 @@
+# **The instrument.** `SPEC-04` §10.
+#
+# It measures what a CPU rasteriser costs on the machine it is running on, phase
+# by phase, and prints the numbers where an operator or an agent can read them.
+#
+# ## Why a separate application and not a mode of `aura-renderer`
+#
+# **Because a Rivet application cannot be told anything.** There is no `env` key
+# in a manifest, no argv, and no control-plane verb that writes a file into
+# `RIVET_APP_DATA` — `rivet` has `get file` and no counterpart. So a flag, an
+# environment variable and a switch file are all unavailable, and *a mode* is
+# not a thing this platform can select.
+#
+# What it CAN select is an application. Any program declaring
+# `devices = ["display"]` is offered on the launcher's menu (`ADR-036` §8A), so
+# a separate package is the one form of "run the benchmark instead of the
+# renderer" that a person standing in front of the television can actually
+# choose. It is also the form an agent can choose, over `apply input`.
+#
+# ## Why it never stops
+#
+# A Raspberry Pi 4 throttles under sustained full-screen drawing, and a
+# two-second benchmark measures the boost clock. The phases therefore run in an
+# endless cycle and every cycle prints its own numbers with the elapsed time
+# beside them, so leaving it running for ten minutes gives the ten-minute
+# answer and throttling shows up as the same phase getting slower rather than
+# being hidden inside an average.
+[workspace]
+
+[package]
+name = "aura-probe"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[package.metadata.rivet]
+kind    = "daemon"
+restart = "always"
+ready   = "none"
+devices = ["display"]
+library = []
+network = "none"
+
+[dependencies]
+rivetos-sdk = { path = "../../../rivet-sdk", features = ["screen"] }
+
+[profile.release]
+# **The same profile the renderer ships with**, and that is deliberate: a
+# benchmark built at a different optimisation level than the program it is
+# predicting measures a program nobody runs.
+opt-level = 3
+lto = true

@@ -1,0 +1,37 @@
+# **The cross linker. Without this file the template builds HERE and not
+# anywhere else** — `ADR-040` §10.3, found by the first adopter of the `serve`
+# module on 2026-09-05.
+#
+# `.cargo/config.toml` is discovered by walking up the DIRECTORY tree, not the
+# workspace, so a template sitting in `examples/templates/` picks up the
+# repository root's copy however empty its own `[workspace]` table is. Copy the
+# directory somewhere else — which is the one thing a template is for — and the
+# setting is gone.
+#
+# What that looks like is not a message about linkers. Every crate compiles
+# cleanly for the target and then:
+#
+#     /usr/bin/ld: crt1.o: Relocations in generic ELF (EM: 183)
+#     /usr/bin/ld: crt1.o: error adding symbols: file in wrong format
+#     collect2: error: ld returned 1 exit status
+#
+# **Measured rather than reasoned about**: this template, copied to `/tmp` with
+# nothing changed but the SDK's path, fails exactly that way. `SPEC-01` §2.1 and
+# the README both say an outside crate inherits none of the repository's cargo
+# configuration; the template is the artifact an author actually copies, and it
+# was the one place the sentence was not carried.
+#
+# `rust-lld` ships with the Rust toolchain, so this needs no cross binutils.
+# `ADR-026` §3.1.
+#
+# ## What is deliberately NOT here
+#
+# `template-kiosk/.cargo/config.toml` carries three more settings —
+# `-C target-feature=-crt-static`, a linker that knows the sysroot, and
+# `-L $RIVET_SYSROOT/usr/lib`. Those are for an application that links a system
+# shared library, and this one links none: `rusqlite`'s `bundled` feature
+# compiles SQLite's C **into** the binary, which is what lets the manifest above
+# declare `library = []`. Copying the kiosk's file wholesale would turn this
+# into a dynamically linked binary that a Rivet has no loader for.
+[target.aarch64-unknown-linux-musl]
+linker = "rust-lld"

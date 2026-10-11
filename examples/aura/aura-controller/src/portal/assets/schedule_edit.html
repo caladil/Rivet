@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Aura — Schedule Event</title>
+  <link rel="stylesheet" href="../static/style.css">
+</head>
+<body>
+<div class="edit-wrap">
+  <div class="edit-header">
+    <h1>{{TITLE}}</h1>
+    <a href="../?section=schedule">Cancel</a>
+  </div>
+
+  <form method="POST" action="../schedule/save" id="event-form">
+    <input type="hidden" name="index" value="{{INDEX}}">
+
+    <div class="card">
+      <h2>Time</h2>
+      <div class="field">
+        <label for="time">Fire at (24-hour)</label>
+        <input id="time" type="time" name="time" value="{{TIME}}" required>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Days</h2>
+      <p style="font-size:0.85rem;color:var(--muted);margin-bottom:12px">Leave all unchecked to fire every day.</p>
+      <div class="days-grid">
+        {{DAYS}}
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Actions</h2>
+      <div class="actions-list" id="actions-list">
+        {{ACTIONS}}
+      </div>
+      <button type="button" class="btn btn-sm btn-muted" style="margin-top:12px" onclick="addAction()">+ Add Action</button>
+    </div>
+
+    <div class="btn-row" style="margin-bottom:24px">
+      <button class="btn btn-green" type="submit">Save Event</button>
+      <a href="../?section=schedule"><button class="btn btn-muted" type="button">Cancel</button></a>
+    </div>
+  </form>
+</div>
+
+<script>
+// There is no CEC action. Switching a television is the machine's, not Aura's
+// — a kiosk application holds the display lease exclusively and cannot reach
+// /dev/cec. The machine document's [display] table is where those hours live.
+const valueOptions = {
+  display:      ['on','off'],
+  screensaver:  ['solid','matrix','boxes'],
+  brightness:   ['25','50','75','100'],
+  weather:      ['on','off'],
+};
+
+const valueLabels = {
+  display:      {on:'On', off:'Off'},
+  screensaver:  {solid:'Solid', matrix:'Digital Rain', boxes:'Boxes'},
+  brightness:   {'25':'25%', '50':'50%', '75':'75%', '100':'100%'},
+  weather:      {on:'On', off:'Off'},
+};
+
+const ssThemes = {
+  solid:  [{v:'',l:'Black (default)'},{v:'white',l:'White'},{v:'navy',l:'Navy'}],
+  matrix: [{v:'',l:'Classic Green (default)'},{v:'ice_blue',l:'Ice Blue'},{v:'pride',l:'Born This Way'}],
+  boxes:  [{v:'',l:'Ice Blue (default)'},{v:'green',l:'Matrix Green'},{v:'dark',l:'Dark'},{v:'pride',l:'Born This Way'}],
+};
+
+function buildValueSelect(type, current) {
+  const opts = valueOptions[type] || [];
+  const lbls = valueLabels[type] || {};
+  return opts.map(v =>
+    `<option value="${v}"${v === current ? ' selected' : ''}>${lbls[v] || v}</option>`
+  ).join('');
+}
+
+function buildThemeSelect(ssValue, current) {
+  const opts = ssThemes[ssValue] || [];
+  return opts.map(o => `<option value="${o.v}"${o.v===current?' selected':''}>${o.l}</option>`).join('');
+}
+
+function onValueChange(sel) {
+  const row = sel.closest('.action-row');
+  const typeSelect = row.querySelector('.type-select');
+  if (!typeSelect || typeSelect.value !== 'screensaver') return;
+  const themeSelect = row.querySelector('.theme-select');
+  const ssValue = sel.value;
+  const opts = ssThemes[ssValue] || [];
+  themeSelect.style.display = opts.length ? '' : 'none';
+  themeSelect.innerHTML = buildThemeSelect(ssValue, '');
+}
+
+function onTypeChange(sel) {
+  const row = sel.closest('.action-row');
+  const type = sel.value;
+  const valueSelect = row.querySelector('.value-select');
+  const themeSelect = row.querySelector('.theme-select');
+  const current = valueSelect.value;
+  valueSelect.innerHTML = buildValueSelect(type, current);
+  const ssValue = valueSelect.value;
+  const hasThemes = type === 'screensaver' && (ssThemes[ssValue]||[]).length > 0;
+  themeSelect.style.display = hasThemes ? '' : 'none';
+  if (hasThemes) themeSelect.innerHTML = buildThemeSelect(ssValue, '');
+}
+
+let actionCount = {{ACTION_COUNT}};
+
+function addAction() {
+  const i = actionCount++;
+  const row = document.createElement('div');
+  row.className = 'action-row';
+  row.dataset.index = i;
+  row.innerHTML = `
+    <select name="action.${i}.type" class="type-select" onchange="onTypeChange(this)">
+      <option value="display">Display</option>
+      <option value="screensaver">Screensaver</option>
+      <option value="brightness">Brightness</option>
+      <option value="weather">Weather</option>
+    </select>
+    <select name="action.${i}.value" class="value-select" onchange="onValueChange(this)">
+      <option value="on">On</option>
+      <option value="off">Off</option>
+    </select>
+    <select name="action.${i}.theme" class="theme-select" style="display:none"></select>
+    <button type="button" class="remove-btn" onclick="removeAction(this)">Remove</button>
+  `;
+  document.getElementById('actions-list').appendChild(row);
+  renumber();
+}
+
+function removeAction(btn) {
+  btn.closest('.action-row').remove();
+  renumber();
+}
+
+function renumber() {
+  document.querySelectorAll('#actions-list .action-row').forEach((row, i) => {
+    row.dataset.index = i;
+    row.querySelectorAll('[name]').forEach(el => {
+      el.name = el.name.replace(/action\.\d+\./, `action.${i}.`);
+    });
+  });
+  actionCount = document.querySelectorAll('#actions-list .action-row').length;
+}
+</script>
+</body>
+</html>

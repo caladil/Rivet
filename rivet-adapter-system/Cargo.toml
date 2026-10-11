@@ -1,0 +1,69 @@
+[package]
+name = "rivetos-adapter-system"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Rivet's observed-state adapter: the mount table and filesystem usage. ADR-014 §2."
+
+[dependencies]
+# The domain port this crate produces values for. `rivet_core::operation::
+# Machine::read_filesystems` names `MountedFilesystem`, `StorageRead` and
+# `UnreadableFilesystem`, and they are read from there rather than declared
+# again here (`ADR-011`). An adapter depending on the core is the direction the
+# hexagon runs in; `ADR-014` §3's table forbids the reverse and forbids
+# adapter -> adapter.
+rivetos-core = { path = "../rivet-core" }
+
+# NOTHING ELSE, and — as `rivet-adapter-image`'s manifest puts it — that is a
+# consequence of the port rather than an omission (`ADR-009` §3 requires the
+# reason for the step taken to be recorded).
+#
+# This crate makes no syscall. Reading `/proc/self/mounts` and calling
+# `statvfs(3)` are both below `port::SystemMedium`, and the one implementor that
+# exists is `cmd/rivet`'s, over the `libc` wall that crate already owns in
+# `src/syscall.rs`. So there is no `libc` here and no `nix`:
+#
+#   libc         would be needed for a `StdSystemMedium` of this crate's own —
+#                `statvfs(2)` has no `std` equivalent on any target. Deliberately
+#                not taken, for the reason `rivet-adapter-image` records: the
+#                only caller today already has a syscall seam, and standing a
+#                second one beside it would be `ADR-011`'s second authority over
+#                the same syscalls. The moment to revisit is the moment a
+#                process that is NOT `cmd/rivet` needs to measure a
+#                filesystem — the supervisor enforcing `ADR-022` §8's cap
+#                against real free space is the obvious candidate.
+#   uucore       **ruled out by name**, `ADR-005` §4.1.5: the most minimal ask
+#                available pulls 45 crates including the Mozilla Fluent
+#                localization engine, non-optionally, and no feature flag
+#                removes it. §4.1.6 rules the alternative taken instead — read
+#                it, lift the algorithm, name the module in the source file.
+#                `src/mounts.rs` and `rivet_core::operation::storage` each
+#                carry that attribution.
+#
+# The consequence for `ADR-010` §4: no new licence needs adding to deny.toml,
+# because no new dependency was taken.
+
+[lints.rust]
+# Nothing here talks to the kernel — every syscall is below `port::SystemMedium`,
+# in whatever crate implements it. So, like `rivet-store` and
+# `rivet-adapter-image` and unlike `cmd/rivet-initd`, this crate holds no
+# `unsafe` at all and forbids it outright.
+unsafe_code = "forbid"
+
+[lints.clippy]
+# Where this runs decides how hard the lints bite. Everything here is reached
+# from `cmd/rivet`, which is the login shell and sets the
+# same three to `deny`: `panic = "abort"` in the release profile makes a panic
+# in a session a session that dies with no message.
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+
+[lib]
+# The PACKAGE is `rivetos-adapter-system` and the LIBRARY is `rivet_adapter_system`.
+# ADR-033 §4: crates.io names and source names are different facts, and
+# rivet.gg already owns the `rivet-*` package namespace.
+name = "rivet_adapter_system"
+path = "src/lib.rs"

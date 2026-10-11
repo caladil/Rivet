@@ -1,0 +1,118 @@
+# **This is the CRATE manifest. The one that gets it onto a board is
+# `deploy/launcher/Cargo.toml`** — added 2026-09-04, and read it before
+# deploying.
+#
+# The launcher is designed to be an image service, and is deployed as an
+# *application* while it is iterated on (`PLAN.md` §104.36). That needs a
+# `[package.metadata.rivet]` table, which cannot live here — this crate is a
+# root-workspace member and `cargo rivet package` reads the manifest in its own
+# directory. So there is a second manifest, and it carries one line that decides
+# whether the program gets a screen at all: `connects = ["rivet-sysd:kiosk"]`
+# makes it the display ARBITER under `.rulings/` R-138, and without it the same
+# binary is a lessee with no card node and nothing to draw on.
+#
+# It lived untracked in `.launcher-pkg/` until 2026-09-04.
+[package]
+name = "rivetos-launcher"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+# The `rivet-` prefix means Rivet's own machinery, and this is exactly that.
+# The package is `rivetos-` for the same reason every other `cmd/` crate is —
+# `ADR-014` §2.
+[[bin]]
+name = "rivet-launcher"
+path = "src/main.rs"
+
+# **No cargo dependencies, and one C one, linked STATICALLY.** `build.rs`
+# carries why that is possible and why it is a build script rather than a
+# `.cargo/config.toml`: this crate is a workspace member, so a per-crate config
+# is ignored and the workspace's would make every Rivet binary dynamic.
+#
+# `src/drm.rs` declares what it uses of libdrm, read out of the installed
+# headers. `PLAN.md` §104.35 is where that was proved on hardware, in
+# `examples/probes/kiosk-demo`, before it was brought here.
+#
+# ~~The day it draws it will need `libc` for `FBIOGET_VSCREENINFO`, exactly as
+# `cmd/rivet-splash` does.~~ **STRUCK 2026-09-01** — that sentence assumed the
+# framebuffer, and `§104.33.4` ruled against it: a program that writes to
+# `/dev/fb0` loses a fight with the system console, because `/dev/console` IS
+# the framebuffer console. This takes DRM master instead, which suspends it.
+
+# **The first cargo dependency in a Rivet binary** — `PLAN.md` §104.38, ruled
+# 2026-09-01. `ADR-009` governs this and the precedent so far is `ring`, pulled
+# in by `rivetos-tls` because cryptography is not a thing to write.
+#
+# A typeface is the same shape of argument. The alternative was rendering Geist
+# into a bitmap atlas at build time -- no dependency, and locked to the sizes
+# chosen that day, with "scaling" meaning a stretched bitmap. The maintainer's
+# stated plan is fonts installable from Google Fonts, and an atlas makes that
+# awkward for ever.
+#
+# `fontdue` is pure Rust with no `unsafe` and no C, so it costs nothing at the
+# cross-compilation boundary that `ring` costs everything at.
+[dependencies]
+# **The launcher uses the SDK it is the bones of** -- ADR-036 5.4A. It is handed
+# its input listener by LISTEN_FDS rather than opening a path, because PLAN.md
+# 104.37's first article binds this program too: an application declares what it
+# needs and is HANDED it. A launcher exempting itself would be the worst possible
+# advertisement for the rule.
+rivetos-sdk = { path = "../../rivet-sdk" }
+# ~~**The real parser, 2026-09-01.** `offered.rs` carried a deliberately small
+# TOML reader that called itself scaffolding, and adding `[kiosk] locked` was
+# about to make it two hand-rolled readers of one document. The maintainer
+# caught it: a second reader of a schema `rivet-config` already owns is the
+# drift PLAN.md 107.8 was spent removing from the action path, in a different
+# costume. The launcher is not size-constrained on a Pi.~~
+#
+# **Dropped 2026-09-05, ADR-042 8.2, and the reasoning above is why.** That
+# change made the launcher use the right parser; this one removes the second
+# READ. A Landlock-confined application may not open the operator's document at
+# all, so the launcher asks `rivet_core::kiosk::Request::Offer` on the socket it
+# was granted and the supervisor's own parse is the only one. One reader, which
+# is what ADR-011 wanted and what 107.8 was spent on -- so this dependency has
+# nothing left to do.
+fontdue = "0.9"
+
+# **The launcher is a Wayland CLIENT now** — `ADR-058` §4.1, 2026-09-20. It
+# stopped owning the screen and started asking `rivet-displayd` for a surface.
+#
+# `default-features = false` is the whole of the evaluation and is not a
+# preference. The default set pulls `xkbcommon` — a C library — and `calloop`.
+# `xkbcommon` would make this binary DYNAMIC, and it is the only one on the
+# card besides the compositor that would be; `ADR-003` §5's exception is worth
+# paying once for a program that cannot avoid Mesa and is not worth paying for
+# a menu. What is left is pure Rust and the binary stays static.
+#
+# Evaluated ahead of writing the protocol by hand, which is `ADR-009`'s table
+# read the right way round after `ADR-058` §5.1 recorded what skipping it costs.
+smithay-client-toolkit = { version = "0.19", default-features = false }
+
+# The kiosk protocol, so both ends of the socket are parsed from ONE module
+# (`rivet_core::kiosk`) rather than from two that could drift.
+rivetos-core = { path = "../../rivet-core" }
+
+# **For `sendmsg` and the `CMSG_*` macros only** — `PLAN.md` §106.2.
+#
+# Handing the supervisor a display lease means attaching a descriptor to a
+# message as `SCM_RIGHTS`, and the control-message layout has alignment rules
+# that C expresses as macros. Deriving them by hand is the class of thing that
+# does not fail to compile: it reads the wrong offset and drops the descriptor
+# in silence, which is exactly what `drm.rs` says about writing UAPI structs
+# from memory.
+#
+# It adds nothing to the closure. `libc` is a Rust crate binding the libc this
+# binary already links; `rivet-sysd` has depended on it since 2026-08-23.
+libc = "0.2"
+
+[lints.rust]
+# FFI, and it cannot be otherwise: a modeset is a sequence of ioctls and there
+# is no safe wrapper in this tree. Every `unsafe` block below carries the
+# invariant it relies on, which is the rule `deny` was standing in for.
+unsafe_code = "allow"
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"

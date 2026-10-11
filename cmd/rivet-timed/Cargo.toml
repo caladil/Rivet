@@ -1,0 +1,104 @@
+[package]
+name = "rivetos-timed"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Rivet's time client. One SNTP round trip, and a step when the offset earns one. ADR-021 §4, §7."
+
+[dependencies]
+
+# ADR-021 §4's "small SNTP crate", taken 2026-08-23 after the survey ADR-021 §8
+# item 1 asked for. The maintainer ruled `rsntp`, and the FEATURE SELECTION IS
+# PART OF THE RULING rather than a tidy-up:
+#
+#   default-features = false, and no features taken.
+#
+# `rsntp`'s defaults are `["async", "chrono"]`, which are `tokio` (with `net`
+# and `time`) and `chrono`. That is ADR-021 §4.1's rejected failure mode
+# arriving through the side door — the section rejects `ntpd-rs` precisely
+# because `tokio` and `rustls` are non-optional there, and taking `tokio`
+# voluntarily from a smaller crate would be the same cost with none of the
+# accuracy that bought it. With no features the crate is ONE package with ZERO
+# transitive dependencies.
+#
+# What is lost by turning `chrono` off, stated so the next reader does not turn
+# it back on for convenience: `SynchronizationResult::datetime()` still works
+# and `SntpDateTime::unix_timestamp()` still returns a `std::time::Duration`.
+# Only the `chrono`/`time` conversions go. THIS CRATE USES NEITHER — see
+# `src/sntp.rs`, which takes `clock_offset()` (a number derived from the four
+# timestamps in the packet exchange and nothing else) rather than
+# `datetime()`, because `datetime()` reads `SystemTime::now()` inside the
+# library and would put a clock read where no test can reach it.
+#
+# Licence: MIT OR Apache-2.0 — both already allowed by `deny.toml`, so this
+# dependency adds no licence term to the closure (ADR-010 §4).
+rsntp = { version = "4.1.2", default-features = false }
+
+# The clock and the sleep. `clock_settime(CLOCK_REALTIME)` and
+# `clock_gettime(CLOCK_MONOTONIC)` have no `std` equivalent — `std` can read the
+# wall clock and cannot set it, and `std::time::Instant` is a monotonic clock
+# whose value cannot be rendered as a number of milliseconds since boot, which
+# is what ADR-022 §3.2's `mono` field is.
+#
+# The same wall this crate's siblings put around it (ADR-009 §3.4): **no `libc`
+# type appears outside `src/kernel.rs`**, and there is a test that says so.
+libc = "0.2"
+
+# ADR-022 §3.2's record, taken 2026-08-24. **The note below said this crate
+# names no Rivet domain type; that was true and stopped being true.**
+#
+# The record became a domain type the day ADR-022 §9's `rivet log` needed to
+# READ one, in a third process — a format that ADR-022 §3 makes authoritative
+# cannot have three encoders and a decoder each believing their own copy, and
+# the failure would be silent, because a reader that disagrees with a writer
+# just shows a shorter log. `src/journal.rs` had already named itself "the
+# strongest candidate yet" for exactly this move.
+#
+# Zero transitive dependencies: rivet-core's own `[dependencies]` table is
+# empty by rule (ADR-014 §3), which is what makes taking it here cost nothing a
+# boot binary cares about.
+rivetos-core = { path = "../../rivet-core" }
+
+# Deliberately NOT here, with the reason recorded per ADR-009 §3:
+#
+#   rivet-config  This binary reads argv, performs one UDP exchange and
+#   rivet-store   decides whether to move a clock; neither an administrative
+#                   operation nor a configuration document is involved. **The
+#                   one place it nearly wants `rivet-store` is `Origin`** —
+#                   see `src/run.rs`, which explains why it does not write
+#                   `/state/clock` at all and why that keeps ADR-011 satisfied
+#                   rather than dodged.
+#   ignition        The identical argument `cmd/rivet-netd`,
+#   clap            `cmd/rivet-initd` and `cmd/rivet-sysd` all record
+#                   in their own manifests, and it is not repeated here: this
+#                   binary parses three flags, and being the one boot binary
+#                   that links a configuration framework to avoid thirty lines
+#                   of argument parsing is not a trade any of them took.
+#   chrono / time   see the note on `rsntp` above. RFC 3339 rendering is
+#                   ~25 lines of calendar arithmetic ~~and this crate already
+#                   needed a copy of the journal record~~ — and since
+#                   2026-08-24 it does not even cost that, because
+#                   `rivet_core::journal::rfc3339` is the one the supervisor
+#                   already uses. The argument got stronger, not weaker.
+
+[lints.rust]
+# One `unsafe` region, in `src/kernel.rs`, for the two `clock_*` calls and
+# `nanosleep`. Every block carries a SAFETY comment.
+unsafe_code = "allow"
+
+[lints.clippy]
+# Stricter than the workspace's `warn`, matching `cmd/rivet-sysd`. This
+# process is allowed to fail — the supervisor restarts it — but a panic that
+# takes the process down without saying why on the console is a service that
+# stopped correcting the clock for a reason nobody can read.
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+
+[[bin]]
+# The PACKAGE is `rivetos-timed` and the BINARY is `rivet-timed`, which is what
+# /system/bin holds and what an operator types. ADR-033 §4.
+name = "rivet-timed"
+path = "src/main.rs"

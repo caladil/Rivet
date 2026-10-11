@@ -1,0 +1,35 @@
+# A desired-state document that enables one application and hands it one
+# setting — the fixture for `ADR-042` §6's confinement proof.
+#
+# **A harness fixture, not a sample configuration** (`tools/qemu/qemu-network.toml`
+# makes the same disclaimer, for the same reason). Nothing in it describes a
+# real machine: it names one application, which `run.sh --app` installs by a
+# route that is not an install, and one setting whose only purpose is to make
+# the file the supervisor writes non-empty.
+#
+# ## What each half is for
+#
+# `[services.confinement-probe] enabled = true` is what makes the supervisor
+# start it at all.
+#
+# `[applications.confinement-probe] theme` is what makes
+# `rivet_core::settings::path` a file with bytes in it. The supervisor writes
+# that file whether or not there is anything to put in it, so an empty one
+# would still exist — but a probe reporting *"READ 0 byte(s)"* cannot be told
+# from one reading a file that was truncated, and this proof is about telling
+# things apart.
+#
+# ## And this file is ALSO the thing the probe must NOT be able to read
+#
+# `run.sh --document` plants it at `/state/config/machine.toml`, which is the
+# path the launcher was refused on 2026-09-04. That is deliberate: the second
+# half of the proof needs a path that **exists** and is still denied, because a
+# refusal that is `ENOENT` says nothing about a ruleset (`AGENTS.md` §7).
+
+version = 1
+
+[services.confinement-probe]
+enabled = true
+
+[applications.confinement-probe]
+theme = "digital-rain"

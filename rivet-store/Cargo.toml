@@ -1,0 +1,82 @@
+[package]
+name = "rivetos-store"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Rivet's persistence of desired state to /state/config. ADR-014 §2."
+
+[dependencies]
+# `/state`'s facts — where it is mounted and where configuration lives inside it
+# — belong to `rivet-core::state` and are read from there rather than spelled
+# again here (ADR-011). An adapter depending on the core is the direction the
+# hexagon runs in; ADR-014 §3's table forbids the reverse and forbids
+# adapter -> adapter.
+rivetos-core = { path = "../rivet-core" }
+
+# The subject. This crate persists a `rivet_config::Document` and has no other
+# reason to exist, so the edge is not incidental. `rivet-config` is the schema
+# crate rather than an adapter (ADR-014 §2 lists them separately), it performs no
+# I/O, and it already depends on `rivet-core` — so the graph stays acyclic and
+# `rivet-core`'s `[dependencies]` table stays empty, which is what makes every
+# forbidden edge in ADR-014 §3 fail to compile.
+#
+# Note what is *not* here: the canonical serialiser. ADR-007 §3.1's byte-identical
+# text form lives in `rivet-config::serialise` beside the parser, because
+# `rivet export` and a future API need those bytes with no filesystem in sight
+# — see that module for the argument.
+rivetos-config = { path = "../rivet-config" }
+
+# NOTHING ELSE, and that is a survey's outcome rather than an omission
+# (ADR-009 §3.2 requires the survey; §3 requires the reason for the step taken).
+#
+#   tempfile     rung 1 and the obvious candidate for "write to a temp file and
+#                rename". Rejected: its whole value is a *randomly named* file
+#                cleaned up on drop, and this crate needs the opposite — one
+#                derived, predictable path inside the target directory, so that a
+#                temp left behind by a power cut is overwritten by the next save
+#                rather than accumulating on the one writable filesystem
+#                (ADR-018 §7, where all of the card's wear is concentrated).
+#                It also cannot help with the part that is actually hard, which
+#                is the fsync ordering in `store::save`.
+#   atomicwrites,
+#   atomic-write-file
+#                Both do exactly this crate's job and both were read rather than
+#                dismissed. Rejected on the port: they own the syscalls, so the
+#                failure paths that matter here — ENOSPC arriving at fsync rather
+#                than at write, EROFS from an unmounted /state, a rename refused
+#                — become unreachable from a test on a developer's machine.
+#                AGENTS.md §4 wants every one of those driven; `src/port.rs` is
+#                forty lines and makes them all reachable.
+#   serde, toml  not needed: this crate never sees TOML. It moves a `String`
+#                between `rivet_config::Document` and a file descriptor.
+#
+# The consequence for ADR-010 §4: no new licence needs adding to deny.toml,
+# because no new dependency was taken.
+
+# Only to check this crate's errno constants against the platform's own, in a
+# test that compiles on Linux alone. Nothing in `src/` names `libc`.
+[target.'cfg(target_os = "linux")'.dev-dependencies]
+libc = "0.2"
+
+[lints.rust]
+# This crate reaches the filesystem through `std` alone; there is no syscall it
+# needs that `std::fs` does not offer, so unlike `cmd/rivet-initd` and
+# `rivet-adapter-net` it holds no `unsafe` at all and forbids it outright.
+unsafe_code = "forbid"
+
+[lints.clippy]
+# Where this runs decides how hard the lints bite. `store::seed` is called from
+# PID 1 (ADR-017 §3.1.8), where `panic = "abort"` in the release profile makes a
+# panic a kernel panic with no console and no stack trace.
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+
+[lib]
+# The PACKAGE is `rivetos-store` and the LIBRARY is `rivet_store`.
+# ADR-033 §4: crates.io names and source names are different facts, and
+# rivet.gg already owns the `rivet-*` package namespace.
+name = "rivet_store"
+path = "src/lib.rs"

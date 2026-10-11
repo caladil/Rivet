@@ -1,0 +1,22 @@
+[package]
+name = "rivet-cpu-spin-probe"
+version = "0.0.1"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+authors = ["Joel Lindell"]
+publish = false
+description = "Spins one core and reads its own cgroup's cpu.stat back, for tools/qemu/adr-007-cpu-proof.sh."
+
+# Its own workspace root, deliberately — `tools/qemu/testapp/Cargo.toml`'s
+# reasoning applies unchanged: this is a fixture the QEMU harness installs at
+# an existing SYSTEM service slot (`--timed` or `--bluetoothd`), not part of
+# the system, and making it a workspace member would put a test fixture in
+# `cargo build --workspace` and in the crate count `AGENTS.md` §10 corrects.
+[workspace]
+
+[dependencies]
+
+[profile.release]
+panic = "abort"
+opt-level = "z"
+strip = true

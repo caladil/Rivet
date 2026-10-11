@@ -1,0 +1,57 @@
+# **The first article's host half** — a Rust application that opens a
+# class-matched addon at run time, agrees a version with it, and calls it.
+#
+# Three things this exists to prove on hardware, none of which this project
+# has done before (`docs/design-candidates/Addon-Call-Boundary-2026-09-19.md`
+# §6):
+#
+#   1. a DYNAMICALLY LINKED Rust application installs, passes the installer's
+#      closure check and runs on a Rivet. Every other Rust application in
+#      `examples/` declares `library = []` and is static; the one dynamic
+#      example, `examples/probes/greeter`, is C.
+#   2. it `dlopen`s an object out of the directory `ADR-053` put on its
+#      `LD_LIBRARY_PATH`, having asked only for a NAME.
+#   3. a version mismatch and a panicking addon are both refused with a
+#      sentence, and this program keeps running.
+#
+# **It is dynamic because of how it is BUILT, not because of anything here.**
+# `-C target-feature=-crt-static` is what produces a binary with an interpreter
+# instead of a static one, and `build.sh` is where that lives. A manifest
+# cannot say it and the installer does not ask: what the installer checks is
+# the closure, and this program's closure is `libc.so`, which is public.
+[workspace]
+
+[package]
+name = "addon-probe-host"
+version = "1.0.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[package.metadata.rivet]
+kind    = "daemon"
+# **`never`, deliberately.** This probe reports and then idles. Under
+# `always` a program that finished its report would be restarted for ever and
+# its journal would be the same six lines on repeat, which is a worse way to
+# read a proof.
+restart = "never"
+ready   = "none"
+network = "none"
+state   = "private"
+# **The join.** `ADR-053` §2: the supervisor puts every installed library
+# whose `provides-class` is in this list onto this program's
+# `LD_LIBRARY_PATH`, at every discovery pass. Nothing here names an artifact.
+accepts-class = ["probe-source"]
+# **Empty, and still dynamic.** This declares no SHARED RIVET; `libc.so` is in
+# `PUBLIC_LIBRARIES` and arrives with the image, so the closure check passes
+# with nothing declared. `SPEC-02` §4 is the layout, §9 the hardware proof for
+# the C case.
+library = []
+devices = []
+
+[dependencies]
+rivetos-addon = { path = "../../../rivet-addon" }
+serde_json = "1"
+
+[profile.release]
+opt-level = 2

@@ -1,0 +1,82 @@
+# **`rivet-reset`** — step one of `SPEC-05`'s twelve, and a HOST tool.
+#
+# It removes a fleet's certificate authority, its register, the provisioning
+# documents composed on this workstation, and the authority's certificates from
+# the Windows certificate stores. It never reaches a board and it holds no key.
+#
+# # Why it is its own binary rather than a verb of `rivet-provision`
+#
+# `rivet-provision` mints. This destroys. They are the two ends of a fleet's
+# life and the thing that separates them is the one that matters: a person
+# rehearsing the minting ceremony must not be one keystroke from the program
+# that removes what a previous ceremony produced. `SPEC-05` §2 and §4.1 name it
+# `rivet-reset` throughout, and a verb hidden inside another tool is one nobody
+# finds when they need it.
+[package]
+name = "rivetos-reset"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "rivet-reset — return a workstation to the state a first-ever run would find: the fleet authority, the register, composed documents, and the authority's certificates in the Windows stores. SPEC-05 §2."
+
+[[bin]]
+name = "rivet-reset"
+path = "src/main.rs"
+
+[dependencies]
+# **To read a certificate, and to VERIFY one.**
+#
+# The `verify` feature is the whole of this program's correctness: a certificate
+# belongs to the authority being reset if and only if that authority's public
+# key verifies its signature. Matching on the issuer's NAME is what produced the
+# 2026-09-07 picker holding four unusable certificates, because a re-minted
+# authority may carry the subject of the one it replaced.
+#
+# The feature brings `ring`, which `rcgen` already puts in this workspace for
+# `cmd/rivet-provision` and `cmd/cargo-rivet` — so this adds a feature rather
+# than a crate.
+x509-parser = { version = "0.18", features = ["verify"] }
+
+# **Only to find the register, and only through the loader `rivet-fleet` uses.**
+#
+# `cmd/rivet-fleet` has no library target, so its `Config::register_dir` cannot
+# be called. Going through `ignition::config` with that tool's own application
+# name and environment prefix is what makes a configuration file naming a
+# register, and `RIVET_FLEET_REGISTER`, count here exactly as they count there —
+# `ADR-011` §3's one-spelling rule met by using the same mechanism rather than by
+# copying the answer.
+#
+# Nothing else in this binary is Ignition's: there is no self-update and no CLI
+# surface, because the two verbs a person types at this program are `--dry-run`
+# and `--confirm`.
+ignition = { git = "https://github.com/caladil/Ignition", tag = "v0.3.0" }
+
+# Required by `ignition::config`, which loads a consumer's schema through serde.
+serde = { version = "1", features = ["derive"] }
+
+# **`--keep-authority` clears the fleet repository's machine records through
+# the crate that writes them**, so the removal is a commit made the same way
+# `cargo rivet provision` and `rivet-fleet` make theirs, and the repository's
+# default location is that crate's answer rather than a copy of it. A workspace
+# crate, and already linked by `cmd/rivet-fleet` and `cmd/cargo-rivet`.
+rivetos-fleet-repo = { path = "../../rivet-fleet-repo" }
+
+# **The Armada's layout — `fleets/` and `armada.toml` — from the crate that
+# writes it**, rather than two string literals that could drift from it. Already
+# linked through `rivetos-fleet-repo`; the keep-the-authority test also lays out
+# its registers and its Armada with it, so what the test asserts about is the
+# shape a workstation actually holds.
+rivetos-register = { path = "../../rivet-register" }
+
+[dev-dependencies]
+# **The tests mint their own authorities**, because the assertion that matters
+# is *two authorities with one name are told apart*, and that cannot be written
+# without making two of them. Same version and same features as
+# `cmd/rivet-provision`, so the certificates under test are the shape this
+# project actually produces.
+rcgen = { version = "0.14", default-features = false, features = ["ring", "pem", "x509-parser"] }
+
+[lints]
+workspace = true

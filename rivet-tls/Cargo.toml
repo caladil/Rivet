@@ -1,0 +1,30 @@
+[package]
+name = "rivetos-tls"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "TLS with pinned Ed25519 keys — ADR-035 §7.2, ADR-025 §2."
+
+[dependencies]
+# **The stack ADR-009 §3.7 surveyed and measured on the board.** `ring` rather
+# than `graviola` because graviola's aarch64 needs ARMv8 crypto extensions the
+# Cortex-A72 does not have — it compiles for the target and cannot run on it.
+#
+# `ring` needs a C cross-compiler, which is why tools/card/build.sh now sets
+# CC_aarch64_unknown_linux_musl. That is the cost, and §3.7.4 states it.
+# **No `tls12`** — ruled 2026-09-04, `.rulings/` R-140. Cargo unifies features
+# across a build, so this list has to agree with `cmd/rivet-fleetd`'s or the
+# feature comes back in through the other one and neither manifest looks wrong.
+rustls = { version = "0.23", default-features = false, features = ["std", "ring"] }
+
+[dev-dependencies]
+# **Minting is a HOST concern and never happens on a card**, so rcgen is a dev
+# dependency here and a real one only in cmd/cargo-rivet. It would add `time`
+# to every card that carried it — a date library, to write a validity window
+# ADR-035 §7.1 forbids anyone from trusting.
+rcgen = { version = "0.14", default-features = false, features = ["ring"] }
+
+[lints]
+workspace = true

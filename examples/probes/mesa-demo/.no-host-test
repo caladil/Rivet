@@ -1,0 +1,34 @@
+needs Mesa's `libgbm`, `libEGL` and `libGLESv2` for the host, which this box does not carry
+
+`tools/test-all.sh` reads the first line of this file and reports it as the
+reason for the skip.
+
+This probe exists to prove one thing on one machine: that a Rivet card's VC4
+brings up GBM and EGL and that a GLES program draws through it (`PLAN.md`
+§104.15). The libraries it links come from Buildroot for aarch64 and are on the
+card; the host copies would be Arch's `mesa`, which drags LLVM behind it — a
+hundred megabytes and a build-time cost, in the box every other check runs in,
+so that a program which cannot run without a GPU can be *linked* here.
+
+It is worth saying what this skip does NOT excuse. `tools/card/build.sh` builds
+this for the target and `cargo rivet package` signs it, so it is compiled by the
+loop that matters; what is skipped is only the host build. ~~And the audit of
+2026-09-03 has open findings against this probe — it ignores `RIVET_DISPLAY` and
+writes `/dev/fb0` while the launcher holds the screen — which are behaviour, not
+compilation, and are not made any less open by this file.~~
+
+**The finding was closed in the source on 2026-09-04** (register `R-33`):
+`allowed_to_draw` decides from `RIVET_APP_DATA` and `RIVET_DISPLAY` whether
+anything else could be holding the panel, and the framebuffer is not opened at
+all in the two cases where it could be. The struck sentence is kept because it
+is what a skip file is for — saying out loud what the skip is not covering.
+
+**And the skip still bites, in a new place.** `allowed_to_draw` has a test, and
+that test **has never been executed.** The crate cannot link for the host, so
+`cargo test` cannot build it; the container has no aarch64 interpreter, so the
+target test binary cannot be run. What was verified is: `cargo build --release
+--target aarch64-unknown-linux-musl` succeeds against Buildroot's Mesa with the
+same seven warnings it had before the change, and `cargo test --no-run` for that
+target compiles the test binary. **A test that has never run proves nothing**,
+so the behaviour above is unproven until this probe runs on a board — from the
+launcher's menu, and beside it.

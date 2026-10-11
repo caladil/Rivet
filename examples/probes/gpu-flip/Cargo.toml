@@ -1,0 +1,62 @@
+# **Can the GPU's own buffer reach the glass?** — `src/main.rs` has the whole
+# argument. `mesa-demo` proved the V3D runs shaders and rendered OFF-SCREEN,
+# saying in its own header that page-flipping "is what Aura will need and is
+# the next piece, not this one". This is that piece.
+#
+# **A separate example rather than a mode of `mesa-demo`**, on that file's own
+# reasoning applied one step further: the moment `mesa-demo` needed the CARD
+# node it would stop being able to prove its claim on a board where something
+# else owns the screen. Two artifacts, two claims — and these two claims need
+# different device grants, which is the part a manifest makes visible.
+[workspace]
+
+[package]
+name = "gpu-flip"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[package.metadata.rivet]
+kind    = "daemon"
+restart = "never"
+ready   = "none"
+library = []
+
+# **This needs the CARD node, which `display` on a LESSEE does not give.**
+#
+# `ADR-036` §3.1 / `.rulings/` R-138: a lessee's `display` expands to
+# `/dev/dri/renderD*` alone, which is exactly right for `mesa-demo` and exactly
+# wrong here — a render node cannot set a mode and cannot flip. This probe
+# takes DRM master on `/dev/dri/card0` itself.
+#
+# **So it is not a kiosk application and must not be run as one.** `src/main.rs`
+# refuses outright when `RIVET_DISPLAY` is set, because stealing the CRTC from
+# underneath Aura is not a measurement. It is meant to be run on a board whose
+# kiosk application is stopped, or on a development board with no kiosk at all.
+devices = ["display"]
+
+[dependencies]
+# **The display channel, and only that.** `RIVET_DISPLAY` names a socket that
+# a lease arrives on as a descriptor (`ADR-036` §2), and receiving a descriptor
+# over a unix socket is `SCM_RIGHTS` plumbing every kiosk application on this
+# platform already shares. `mesa-demo`'s "no crates" rule is about THIRD-PARTY
+# crates — a failure in `gbm-rs` and a failure in `gbm` looking identical — and
+# it does not argue for re-implementing the platform's own hand-over.
+#
+# The `screen` feature is on because it is what links `libdrm`, which this
+# program calls directly. Its dumb-buffer `Screen` is deliberately NOT used:
+# that type allocates two CPU-mapped pages, which is the whole thing this probe
+# exists to replace.
+rivetos-sdk = { path = "../../../rivet-sdk", features = ["screen"] }
+
+[profile.release]
+# **`abort` so that `libgcc_s` is not in this binary's NEEDED** — `mesa-demo`'s
+# line and its reason, copied rather than re-derived: the maintainer ruled Mesa
+# into the system image on the ground that its version must match the kernel's
+# (`.rulings/` R-355), and an application that dragged the unwinder in behind
+# it would be widening that exception past its own argument.
+panic = "abort"
+opt-level = "s"
+lto = true
+strip = true

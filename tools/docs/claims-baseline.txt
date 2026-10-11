@@ -1,0 +1,433 @@
+# Findings `tools/docs/claims.py --check` accepts, with their counts.
+#
+# NOT a suppression list. Every one of these is tabled in `PLAN.md` §102.4
+# because the REPAIR is a maintainer's ruling — the finding itself is not in
+# doubt. `--check` fails on anything new, on anything that spread, AND on any
+# entry here that no longer fires, so this file cannot quietly rot.
+#
+# Regenerate: uv run tools/docs/claims.py --write-baseline
+
+4	citations	`PLAN.md` has no §0 and has no §0 either
+4	citations	`PLAN.md` has no §0.0 and has no §0 either — the whole path is broken
+2	citations	`PLAN.md` has no §0.0.1 and has no §0.0 either — the whole path is broken
+4	citations	`PLAN.md` has no §0.0.2 and has no §0.0 either — the whole path is broken
+6	citations	`PLAN.md` has no §0.0.4 and has no §0.0 either — the whole path is broken
+1	citations	`PLAN.md` has no §0.0.5 and has no §0.0 either — the whole path is broken
+1	citations	`PLAN.md` has no §0.0.7 and has no §0.0 either — the whole path is broken
+1	citations	`PLAN.md` has no §0.10 and has no §0 either — the whole path is broken
+10	citations	`PLAN.md` has no §0.11 and has no §0 either — the whole path is broken
+2	citations	`PLAN.md` has no §0.12 and has no §0 either — the whole path is broken
+5	citations	`PLAN.md` has no §0.4.2 and has no §0.4 either — the whole path is broken
+8	citations	`PLAN.md` has no §0.4.3 and has no §0.4 either — the whole path is broken
+2	citations	`PLAN.md` has no §0.4.5 and has no §0.4 either — the whole path is broken
+4	citations	`PLAN.md` has no §0.4.6 and has no §0.4 either — the whole path is broken
+4	citations	`PLAN.md` has no §0.4.7 and has no §0.4 either — the whole path is broken
+1	citations	`PLAN.md` has no §0.5 and has no §0 either — the whole path is broken
+1	citations	`PLAN.md` has no §0.7 and has no §0 either — the whole path is broken
+11	citations	`PLAN.md` has no §0.8 and has no §0 either — the whole path is broken
+3	citations	`PLAN.md` has no §0.9 and has no §0 either — the whole path is broken
+1	citations	`PLAN.md` has no §10 and has no §10 either
+5	citations	`PLAN.md` has no §10.6 and has no §10 either — the whole path is broken
+1	citations	`PLAN.md` has no §10.7 and has no §10 either — the whole path is broken
+3	citations	`PLAN.md` has no §10.8 and has no §10 either — the whole path is broken
+2	citations	`PLAN.md` has no §100 and has no §100 either
+1	citations	`PLAN.md` has no §101 and has no §101 either
+1	citations	`PLAN.md` has no §102 and has no §102 either
+3	citations	`PLAN.md` has no §102.17 and has no §102 either — the whole path is broken
+1	citations	`PLAN.md` has no §102.18 and has no §102 either — the whole path is broken
+4	citations	`PLAN.md` has no §102.25 and has no §102 either — the whole path is broken
+1	citations	`PLAN.md` has no §102.27 and has no §102 either — the whole path is broken
+9	citations	`PLAN.md` has no §102.3 and has no §102 either — the whole path is broken
+2	citations	`PLAN.md` has no §102.4 and has no §102 either — the whole path is broken
+7	citations	`PLAN.md` has no §102.4.1 and has no §102.4 either — the whole path is broken
+2	citations	`PLAN.md` has no §102.4.2 and has no §102.4 either — the whole path is broken
+1	citations	`PLAN.md` has no §102.4.3 and has no §102.4 either — the whole path is broken
+5	citations	`PLAN.md` has no §102.5 and has no §102 either — the whole path is broken
+7	citations	`PLAN.md` has no §102.6 and has no §102 either — the whole path is broken
+2	citations	`PLAN.md` has no §103.10 and has no §103 either — the whole path is broken
+3	citations	`PLAN.md` has no §103.12 and has no §103 either — the whole path is broken
+1	citations	`PLAN.md` has no §103.3 and has no §103 either — the whole path is broken
+1	citations	`PLAN.md` has no §104.1 and has no §104 either — the whole path is broken
+7	citations	`PLAN.md` has no §104.10 and has no §104 either — the whole path is broken
+6	citations	`PLAN.md` has no §104.13 and has no §104 either — the whole path is broken
+1	citations	`PLAN.md` has no §104.15 and has no §104 either — the whole path is broken
+2	citations	`PLAN.md` has no §104.16 and has no §104 either — the whole path is broken
+2	citations	`PLAN.md` has no §104.16.4 and has no §104.16 either — the whole path is broken
+4	citations	`PLAN.md` has no §104.17 and has no §104 either — the whole path is broken
+3	citations	`PLAN.md` has no §104.17.3 and has no §104.17 either — the whole path is broken
+6	citations	`PLAN.md` has no §104.18 and has no §104 either — the whole path is broken
+1	citations	`PLAN.md` has no §104.18.5 and has no §104.18 either — the whole path is broken
+12	citations	`PLAN.md` has no §104.19 and has no §104 either — the whole path is broken
+9	citations	`PLAN.md` has no §104.20 and has no §104 either — the whole path is broken
+2	citations	`PLAN.md` has no §104.21 and has no §104 either — the whole path is broken
+4	citations	`PLAN.md` has no §104.22 and has no §104 either — the whole path is broken
+1	citations	`PLAN.md` has no §104.23 and has no §104 either — the whole path is broken
+2	citations	`PLAN.md` has no §104.25 and has no §104 either — the whole path is broken
+1	citations	`PLAN.md` has no §104.26 and has no §104 either — the whole path is broken
+3	citations	`PLAN.md` has no §104.27 and has no §104 either — the whole path is broken
+2	citations	`PLAN.md` has no §104.29 and has no §104 either — the whole path is broken
+1	citations	`PLAN.md` has no §104.29.2 and has no §104.29 either — the whole path is broken
+1	citations	`PLAN.md` has no §104.29.5 and has no §104.29 either — the whole path is broken
+1	citations	`PLAN.md` has no §104.30 and has no §104 either — the whole path is broken
+1	citations	`PLAN.md` has no §104.33.3 and has no §104.33 either — the whole path is broken
+7	citations	`PLAN.md` has no §104.33.4 and has no §104.33 either — the whole path is broken
+1	citations	`PLAN.md` has no §104.35 and has no §104 either — the whole path is broken
+5	citations	`PLAN.md` has no §104.36 and has no §104 either — the whole path is broken
+1	citations	`PLAN.md` has no §104.36.4 and has no §104.36 either — the whole path is broken
+10	citations	`PLAN.md` has no §104.38 and has no §104 either — the whole path is broken
+10	citations	`PLAN.md` has no §104.39 and has no §104 either — the whole path is broken
+5	citations	`PLAN.md` has no §104.40 and has no §104 either — the whole path is broken
+3	citations	`PLAN.md` has no §104.42 and has no §104 either — the whole path is broken
+4	citations	`PLAN.md` has no §104.43 and has no §104 either — the whole path is broken
+1	citations	`PLAN.md` has no §104.44 and has no §104 either — the whole path is broken
+3	citations	`PLAN.md` has no §104.45.4 and has no §104.45 either — the whole path is broken
+1	citations	`PLAN.md` has no §104.45.5 and has no §104.45 either — the whole path is broken
+1	citations	`PLAN.md` has no §104.7 and has no §104 either — the whole path is broken
+2	citations	`PLAN.md` has no §104.8 and has no §104 either — the whole path is broken
+1	citations	`PLAN.md` has no §105.2 and has no §105 either — the whole path is broken
+4	citations	`PLAN.md` has no §105.3 and has no §105 either — the whole path is broken
+1	citations	`PLAN.md` has no §105.4A and has no §105 either — the whole path is broken
+1	citations	`PLAN.md` has no §105.5 and has no §105 either — the whole path is broken
+4	citations	`PLAN.md` has no §105.7 and has no §105 either — the whole path is broken
+1	citations	`PLAN.md` has no §105.7.2 and has no §105.7 either — the whole path is broken
+11	citations	`PLAN.md` has no §106 and has no §106 either
+2	citations	`PLAN.md` has no §106.1 and has no §106 either — the whole path is broken
+25	citations	`PLAN.md` has no §106.2 and has no §106 either — the whole path is broken
+1	citations	`PLAN.md` has no §106.3 and has no §106 either — the whole path is broken
+2	citations	`PLAN.md` has no §106.4 and has no §106 either — the whole path is broken
+3	citations	`PLAN.md` has no §106.5 and has no §106 either — the whole path is broken
+2	citations	`PLAN.md` has no §107.4 and has no §107 either — the whole path is broken
+1	citations	`PLAN.md` has no §107.8 and has no §107 either — the whole path is broken
+5	citations	`PLAN.md` has no §108 and has no §108 either
+1	citations	`PLAN.md` has no §108.1 and has no §108 either — the whole path is broken
+7	citations	`PLAN.md` has no §108.2 and has no §108 either — the whole path is broken
+3	citations	`PLAN.md` has no §108.5 and has no §108 either — the whole path is broken
+2	citations	`PLAN.md` has no §109.3 and has no §109 either — the whole path is broken
+1	citations	`PLAN.md` has no §11.1 and has no §11 either — the whole path is broken
+9	citations	`PLAN.md` has no §11.2 and has no §11 either — the whole path is broken
+1	citations	`PLAN.md` has no §11.4 and has no §11 either — the whole path is broken
+3	citations	`PLAN.md` has no §110 and has no §110 either
+7	citations	`PLAN.md` has no §110.7 and has no §110 either — the whole path is broken
+10	citations	`PLAN.md` has no §112.2 and has no §112 either — the whole path is broken
+3	citations	`PLAN.md` has no §112.4 and has no §112 either — the whole path is broken
+4	citations	`PLAN.md` has no §112.5 and has no §112 either — the whole path is broken
+3	citations	`PLAN.md` has no §113 and has no §113 either
+5	citations	`PLAN.md` has no §119 and has no §119 either
+5	citations	`PLAN.md` has no §119.3 and has no §119 either — the whole path is broken
+1	citations	`PLAN.md` has no §12.5 and has no §12 either — the whole path is broken
+2	citations	`PLAN.md` has no §122.3 and has no §122 either — the whole path is broken
+1	citations	`PLAN.md` has no §122.5 and has no §122 either — the whole path is broken
+52	citations	`PLAN.md` has no §123 and has no §123 either
+10	citations	`PLAN.md` has no §123.2 and has no §123 either — the whole path is broken
+5	citations	`PLAN.md` has no §127.2 and has no §127 either — the whole path is broken
+1	citations	`PLAN.md` has no §129.4 and has no §129 either — the whole path is broken
+3	citations	`PLAN.md` has no §129.5 and has no §129 either — the whole path is broken
+1	citations	`PLAN.md` has no §13 and has no §13 either
+10	citations	`PLAN.md` has no §13.4 and has no §13 either — the whole path is broken
+2	citations	`PLAN.md` has no §130 and has no §130 either
+3	citations	`PLAN.md` has no §130.1 and has no §130 either — the whole path is broken
+1	citations	`PLAN.md` has no §130.3 and has no §130 either — the whole path is broken
+4	citations	`PLAN.md` has no §132.3 and has no §132 either — the whole path is broken
+2	citations	`PLAN.md` has no §133 and has no §133 either
+3	citations	`PLAN.md` has no §134 and has no §134 either
+3	citations	`PLAN.md` has no §134.3 and has no §134 either — the whole path is broken
+2	citations	`PLAN.md` has no §137.7 and has no §137 either — the whole path is broken
+3	citations	`PLAN.md` has no §14 and has no §14 either
+2	citations	`PLAN.md` has no §14.2 and has no §14 either — the whole path is broken
+1	citations	`PLAN.md` has no §140 and has no §140 either
+1	citations	`PLAN.md` has no §140.2 and has no §140 either — the whole path is broken
+1	citations	`PLAN.md` has no §141 and has no §141 either
+1	citations	`PLAN.md` has no §144.2 and has no §144 either — the whole path is broken
+1	citations	`PLAN.md` has no §146.1 and has no §146 either — the whole path is broken
+3	citations	`PLAN.md` has no §146.3 and has no §146 either — the whole path is broken
+1	citations	`PLAN.md` has no §146.4 and has no §146 either — the whole path is broken
+1	citations	`PLAN.md` has no §148 and has no §148 either
+3	citations	`PLAN.md` has no §149 and has no §149 either
+2	citations	`PLAN.md` has no §149.4 and has no §149 either — the whole path is broken
+4	citations	`PLAN.md` has no §15 and has no §15 either
+8	citations	`PLAN.md` has no §150.1 and has no §150 either — the whole path is broken
+2	citations	`PLAN.md` has no §151 and has no §151 either
+1	citations	`PLAN.md` has no §153 and has no §153 either
+1	citations	`PLAN.md` has no §153.1 and has no §153 either — the whole path is broken
+2	citations	`PLAN.md` has no §154 and has no §154 either
+4	citations	`PLAN.md` has no §155 and has no §155 either
+7	citations	`PLAN.md` has no §156.2 and has no §156 either — the whole path is broken
+2	citations	`PLAN.md` has no §16 and has no §16 either
+1	citations	`PLAN.md` has no §16.2 and has no §16 either — the whole path is broken
+3	citations	`PLAN.md` has no §172 and has no §172 either
+1	citations	`PLAN.md` has no §18 and has no §18 either
+1	citations	`PLAN.md` has no §18.5 and has no §18 either — the whole path is broken
+1	citations	`PLAN.md` has no §180.2 and has no §180 either — the whole path is broken
+3	citations	`PLAN.md` has no §181 and has no §181 either
+13	citations	`PLAN.md` has no §183.2 and has no §183 either — the whole path is broken
+2	citations	`PLAN.md` has no §19.1 and has no §19 either — the whole path is broken
+5	citations	`PLAN.md` has no §19.2 and has no §19 either — the whole path is broken
+8	citations	`PLAN.md` has no §19.4 and has no §19 either — the whole path is broken
+3	citations	`PLAN.md` has no §19.5 and has no §19 either — the whole path is broken
+1	citations	`PLAN.md` has no §2 and has no §2 either
+10	citations	`PLAN.md` has no §2.1 and has no §2 either — the whole path is broken
+6	citations	`PLAN.md` has no §2.2 and has no §2 either — the whole path is broken
+1	citations	`PLAN.md` has no §2.3 and has no §2 either — the whole path is broken
+5	citations	`PLAN.md` has no §20 and has no §20 either
+2	citations	`PLAN.md` has no §20.1 and has no §20 either — the whole path is broken
+2	citations	`PLAN.md` has no §20.3 and has no §20 either — the whole path is broken
+8	citations	`PLAN.md` has no §20.6 and has no §20 either — the whole path is broken
+1	citations	`PLAN.md` has no §21 and has no §21 either
+2	citations	`PLAN.md` has no §21.1 and has no §21 either — the whole path is broken
+3	citations	`PLAN.md` has no §21.2 and has no §21 either — the whole path is broken
+1	citations	`PLAN.md` has no §21.4 and has no §21 either — the whole path is broken
+1	citations	`PLAN.md` has no §22 and has no §22 either
+2	citations	`PLAN.md` has no §22.1 and has no §22 either — the whole path is broken
+3	citations	`PLAN.md` has no §22.3 and has no §22 either — the whole path is broken
+9	citations	`PLAN.md` has no §23 and has no §23 either
+2	citations	`PLAN.md` has no §23.1 and has no §23 either — the whole path is broken
+4	citations	`PLAN.md` has no §23.2 and has no §23 either — the whole path is broken
+8	citations	`PLAN.md` has no §23.5 and has no §23 either — the whole path is broken
+2	citations	`PLAN.md` has no §24 and has no §24 either
+3	citations	`PLAN.md` has no §24.2 and has no §24 either — the whole path is broken
+1	citations	`PLAN.md` has no §24.5 and has no §24 either — the whole path is broken
+1	citations	`PLAN.md` has no §25.2 and has no §25 either — the whole path is broken
+1	citations	`PLAN.md` has no §26.4 and has no §26 either — the whole path is broken
+7	citations	`PLAN.md` has no §26.4.1 and has no §26.4 either — the whole path is broken
+2	citations	`PLAN.md` has no §28.2 and has no §28 either — the whole path is broken
+10	citations	`PLAN.md` has no §28.5 and has no §28 either — the whole path is broken
+2	citations	`PLAN.md` has no §3 and has no §3 either
+1	citations	`PLAN.md` has no §31 and has no §31 either
+1	citations	`PLAN.md` has no §33.3 and has no §33 either — the whole path is broken
+1	citations	`PLAN.md` has no §34.2 and has no §34 either — the whole path is broken
+1	citations	`PLAN.md` has no §34.4 and has no §34 either — the whole path is broken
+1	citations	`PLAN.md` has no §37 and has no §37 either
+1	citations	`PLAN.md` has no §38 and has no §38 either
+2	citations	`PLAN.md` has no §39 and has no §39 either
+1	citations	`PLAN.md` has no §39.5.1 and has no §39.5 either — the whole path is broken
+2	citations	`PLAN.md` has no §39.6 and has no §39 either — the whole path is broken
+1	citations	`PLAN.md` has no §4 and has no §4 either
+6	citations	`PLAN.md` has no §4.13 and has no §4 either — the whole path is broken
+1	citations	`PLAN.md` has no §4.15 and has no §4 either — the whole path is broken
+2	citations	`PLAN.md` has no §4.25 and has no §4 either — the whole path is broken
+6	citations	`PLAN.md` has no §4.26 and has no §4 either — the whole path is broken
+1	citations	`PLAN.md` has no §40 and has no §40 either
+4	citations	`PLAN.md` has no §43 and has no §43 either
+5	citations	`PLAN.md` has no §43.6 and has no §43 either — the whole path is broken
+2	citations	`PLAN.md` has no §46 and has no §46 either
+1	citations	`PLAN.md` has no §47 and has no §47 either
+1	citations	`PLAN.md` has no §5 and has no §5 either
+1	citations	`PLAN.md` has no §50 and has no §50 either
+3	citations	`PLAN.md` has no §51 and has no §51 either
+16	citations	`PLAN.md` has no §53.2 and has no §53 either — the whole path is broken
+1	citations	`PLAN.md` has no §54 and has no §54 either
+5	citations	`PLAN.md` has no §55 and has no §55 either
+1	citations	`PLAN.md` has no §56 and has no §56 either
+1	citations	`PLAN.md` has no §56.4 and has no §56 either — the whole path is broken
+1	citations	`PLAN.md` has no §57 and has no §57 either
+2	citations	`PLAN.md` has no §57.3 and has no §57 either — the whole path is broken
+1	citations	`PLAN.md` has no §57.4 and has no §57 either — the whole path is broken
+2	citations	`PLAN.md` has no §58 and has no §58 either
+2	citations	`PLAN.md` has no §6 and has no §6 either
+3	citations	`PLAN.md` has no §61.2 and has no §61 either — the whole path is broken
+14	citations	`PLAN.md` has no §62 and has no §62 either
+3	citations	`PLAN.md` has no §62.3 and has no §62 either — the whole path is broken
+5	citations	`PLAN.md` has no §62.7 and has no §62 either — the whole path is broken
+1	citations	`PLAN.md` has no §62.8 and has no §62 either — the whole path is broken
+2	citations	`PLAN.md` has no §63.1 and has no §63 either — the whole path is broken
+1	citations	`PLAN.md` has no §63.5 and has no §63 either — the whole path is broken
+1	citations	`PLAN.md` has no §66 and has no §66 either
+1	citations	`PLAN.md` has no §66.3 and has no §66 either — the whole path is broken
+3	citations	`PLAN.md` has no §66.4 and has no §66 either — the whole path is broken
+1	citations	`PLAN.md` has no §66.5 and has no §66 either — the whole path is broken
+1	citations	`PLAN.md` has no §67.6 and has no §67 either — the whole path is broken
+2	citations	`PLAN.md` has no §68 and has no §68 either
+2	citations	`PLAN.md` has no §69 and has no §69 either
+5	citations	`PLAN.md` has no §71 and has no §71 either
+5	citations	`PLAN.md` has no §72.3 and has no §72 either — the whole path is broken
+1	citations	`PLAN.md` has no §72.5 and has no §72 either — the whole path is broken
+2	citations	`PLAN.md` has no §73.1 and has no §73 either — the whole path is broken
+6	citations	`PLAN.md` has no §73.2 and has no §73 either — the whole path is broken
+1	citations	`PLAN.md` has no §74.3 and has no §74 either — the whole path is broken
+1	citations	`PLAN.md` has no §75 and has no §75 either
+1	citations	`PLAN.md` has no §76 and has no §76 either
+4	citations	`PLAN.md` has no §78 and has no §78 either
+5	citations	`PLAN.md` has no §81 and has no §81 either
+1	citations	`PLAN.md` has no §81.2 and has no §81 either — the whole path is broken
+2	citations	`PLAN.md` has no §81.3 and has no §81 either — the whole path is broken
+4	citations	`PLAN.md` has no §82 and has no §82 either
+2	citations	`PLAN.md` has no §84 and has no §84 either
+5	citations	`PLAN.md` has no §84.1 and has no §84 either — the whole path is broken
+1	citations	`PLAN.md` has no §85 and has no §85 either
+5	citations	`PLAN.md` has no §85.2 and has no §85 either — the whole path is broken
+1	citations	`PLAN.md` has no §85.3 and has no §85 either — the whole path is broken
+1	citations	`PLAN.md` has no §87 and has no §87 either
+2	citations	`PLAN.md` has no §88 and has no §88 either
+5	citations	`PLAN.md` has no §88.11 and has no §88 either — the whole path is broken
+1	citations	`PLAN.md` has no §88.5 and has no §88 either — the whole path is broken
+2	citations	`PLAN.md` has no §88.6 and has no §88 either — the whole path is broken
+2	citations	`PLAN.md` has no §88.7 and has no §88 either — the whole path is broken
+2	citations	`PLAN.md` has no §88.9 and has no §88 either — the whole path is broken
+1	citations	`PLAN.md` has no §89.2 and has no §89 either — the whole path is broken
+3	citations	`PLAN.md` has no §9 and has no §9 either
+1	citations	`PLAN.md` has no §9.1 and has no §9 either — the whole path is broken
+12	citations	`PLAN.md` has no §9.2 and has no §9 either — the whole path is broken
+7	citations	`PLAN.md` has no §9.4 and has no §9 either — the whole path is broken
+2	citations	`PLAN.md` has no §90.3 and has no §90 either — the whole path is broken
+1	citations	`PLAN.md` has no §91 and has no §91 either
+1	citations	`PLAN.md` has no §91.4 and has no §91 either — the whole path is broken
+11	citations	`PLAN.md` has no §92 and has no §92 either
+5	citations	`PLAN.md` has no §92.3 and has no §92 either — the whole path is broken
+1	citations	`PLAN.md` has no §92.4 and has no §92 either — the whole path is broken
+1	citations	`PLAN.md` has no §93.1 and has no §93 either — the whole path is broken
+1	citations	`PLAN.md` has no §94 and has no §94 either
+11	citations	`PLAN.md` has no §94.2 and has no §94 either — the whole path is broken
+2	citations	`PLAN.md` has no §94.6 and has no §94 either — the whole path is broken
+13	citations	`PLAN.md` has no §94.7 and has no §94 either — the whole path is broken
+1	citations	`PLAN.md` has no §95 and has no §95 either
+1	citations	`PLAN.md` has no §96 and has no §96 either
+4	citations	`PLAN.md` has no §98 and has no §98 either
+1	citations	`PLAN.md` has no §99.1 and has no §99 either — the whole path is broken
+1	citations	`PLAN.md` has no §99.2 and has no §99 either — the whole path is broken
+1	citations	bare §0.0 is not a section of ANY document in the corpus
+1	citations	bare §0.0.2 is not a section of ANY document in the corpus
+1	citations	bare §0.0.4 is not a section of ANY document in the corpus
+1	citations	bare §0.1 is not a section of ANY document in the corpus
+3	citations	bare §0.2 is not a section of ANY document in the corpus
+2	citations	bare §0.4.3 is not a section of ANY document in the corpus
+2	citations	bare §0.8 is not a section of ANY document in the corpus
+3	citations	bare §100 is not a section of ANY document in the corpus
+2	citations	bare §101 is not a section of ANY document in the corpus
+1	citations	bare §102.2 is not a section of ANY document in the corpus
+1	citations	bare §102.27 is not a section of ANY document in the corpus
+1	citations	bare §102.4 is not a section of ANY document in the corpus
+2	citations	bare §102.4.1 is not a section of ANY document in the corpus
+1	citations	bare §102.4.2 is not a section of ANY document in the corpus
+2	citations	bare §102.5 is not a section of ANY document in the corpus
+1	citations	bare §104.10 is not a section of ANY document in the corpus
+1	citations	bare §104.12 is not a section of ANY document in the corpus
+1	citations	bare §104.13 is not a section of ANY document in the corpus
+2	citations	bare §104.15 is not a section of ANY document in the corpus
+1	citations	bare §104.17 is not a section of ANY document in the corpus
+1	citations	bare §104.17.1 is not a section of ANY document in the corpus
+3	citations	bare §104.17.3 is not a section of ANY document in the corpus
+1	citations	bare §104.17.4 is not a section of ANY document in the corpus
+3	citations	bare §104.18 is not a section of ANY document in the corpus
+1	citations	bare §104.25 is not a section of ANY document in the corpus
+1	citations	bare §104.25.2 is not a section of ANY document in the corpus
+6	citations	bare §104.26 is not a section of ANY document in the corpus
+1	citations	bare §104.27 is not a section of ANY document in the corpus
+1	citations	bare §104.29.2 is not a section of ANY document in the corpus
+5	citations	bare §104.29.5 is not a section of ANY document in the corpus
+1	citations	bare §104.30 is not a section of ANY document in the corpus
+1	citations	bare §104.33.4 is not a section of ANY document in the corpus
+6	citations	bare §104.34 is not a section of ANY document in the corpus
+4	citations	bare §104.35.2 is not a section of ANY document in the corpus
+1	citations	bare §104.36.1 is not a section of ANY document in the corpus
+2	citations	bare §104.36.4 is not a section of ANY document in the corpus
+2	citations	bare §104.40 is not a section of ANY document in the corpus
+3	citations	bare §104.41 is not a section of ANY document in the corpus
+1	citations	bare §104.42 is not a section of ANY document in the corpus
+1	citations	bare §104.43 is not a section of ANY document in the corpus
+1	citations	bare §104.44 is not a section of ANY document in the corpus
+1	citations	bare §104.45.1 is not a section of ANY document in the corpus
+1	citations	bare §104.45.2 is not a section of ANY document in the corpus
+2	citations	bare §104.45.3 is not a section of ANY document in the corpus
+1	citations	bare §104.45.5 is not a section of ANY document in the corpus
+1	citations	bare §104.7 is not a section of ANY document in the corpus
+1	citations	bare §105.3 is not a section of ANY document in the corpus
+1	citations	bare §105.3.4 is not a section of ANY document in the corpus
+1	citations	bare §105.5 is not a section of ANY document in the corpus
+2	citations	bare §106 is not a section of ANY document in the corpus
+2	citations	bare §106.2 is not a section of ANY document in the corpus
+1	citations	bare §106.3 is not a section of ANY document in the corpus
+1	citations	bare §106.5 is not a section of ANY document in the corpus
+3	citations	bare §107.5 is not a section of ANY document in the corpus
+2	citations	bare §107.8 is not a section of ANY document in the corpus
+2	citations	bare §108.1 is not a section of ANY document in the corpus
+1	citations	bare §109.3 is not a section of ANY document in the corpus
+1	citations	bare §110.4 is not a section of ANY document in the corpus
+1	citations	bare §112.4 is not a section of ANY document in the corpus
+1	citations	bare §115.2 is not a section of ANY document in the corpus
+1	citations	bare §119.5 is not a section of ANY document in the corpus
+3	citations	bare §122 is not a section of ANY document in the corpus
+1	citations	bare §123.2 is not a section of ANY document in the corpus
+1	citations	bare §129.6 is not a section of ANY document in the corpus
+2	citations	bare §144.2 is not a section of ANY document in the corpus
+3	citations	bare §146.3 is not a section of ANY document in the corpus
+3	citations	bare §149.1 is not a section of ANY document in the corpus
+1	citations	bare §149.2 is not a section of ANY document in the corpus
+1	citations	bare §149.3 is not a section of ANY document in the corpus
+2	citations	bare §149.4 is not a section of ANY document in the corpus
+1	citations	bare §153 is not a section of ANY document in the corpus
+2	citations	bare §156.2 is not a section of ANY document in the corpus
+1	citations	bare §156.3 is not a section of ANY document in the corpus
+1	citations	bare §18.6 is not a section of ANY document in the corpus
+2	citations	bare §183.2 is not a section of ANY document in the corpus
+2	citations	bare §19.4 is not a section of ANY document in the corpus
+1	citations	bare §20.2 is not a section of ANY document in the corpus
+1	citations	bare §20.3 is not a section of ANY document in the corpus
+1	citations	bare §22.3 is not a section of ANY document in the corpus
+1	citations	bare §23 is not a section of ANY document in the corpus
+9	citations	bare §23.5 is not a section of ANY document in the corpus
+1	citations	bare §26.1 is not a section of ANY document in the corpus
+1	citations	bare §26.4 is not a section of ANY document in the corpus
+1	citations	bare §26.4.1 is not a section of ANY document in the corpus
+1	citations	bare §26.4.2 is not a section of ANY document in the corpus
+1	citations	bare §28.2 is not a section of ANY document in the corpus
+1	citations	bare §31 is not a section of ANY document in the corpus
+3	citations	bare §32 is not a section of ANY document in the corpus
+1	citations	bare §33 is not a section of ANY document in the corpus
+1	citations	bare §35 is not a section of ANY document in the corpus
+1	citations	bare §37.6 is not a section of ANY document in the corpus
+2	citations	bare §39 is not a section of ANY document in the corpus
+1	citations	bare §39.5 is not a section of ANY document in the corpus
+1	citations	bare §4.2.1.10 is not a section of ANY document in the corpus
+1	citations	bare §40 is not a section of ANY document in the corpus
+2	citations	bare §43.6 is not a section of ANY document in the corpus
+2	citations	bare §5.4.1.1 is not a section of ANY document in the corpus
+1	citations	bare §5.6.6 is not a section of ANY document in the corpus
+1	citations	bare §5.6.7 is not a section of ANY document in the corpus
+1	citations	bare §5.6.8 is not a section of ANY document in the corpus
+5	citations	bare §5.7.1 is not a section of ANY document in the corpus
+4	citations	bare §53.2 is not a section of ANY document in the corpus
+2	citations	bare §55 is not a section of ANY document in the corpus
+1	citations	bare §56.2 is not a section of ANY document in the corpus
+3	citations	bare §57 is not a section of ANY document in the corpus
+1	citations	bare §57.2 is not a section of ANY document in the corpus
+1	citations	bare §57.3 is not a section of ANY document in the corpus
+2	citations	bare §58 is not a section of ANY document in the corpus
+1	citations	bare §61 is not a section of ANY document in the corpus
+1	citations	bare §62 is not a section of ANY document in the corpus
+1	citations	bare §62.3 is not a section of ANY document in the corpus
+1	citations	bare §62.8 is not a section of ANY document in the corpus
+1	citations	bare §65 is not a section of ANY document in the corpus
+3	citations	bare §69 is not a section of ANY document in the corpus
+2	citations	bare §7.7.2 is not a section of ANY document in the corpus
+1	citations	bare §73.2 is not a section of ANY document in the corpus
+3	citations	bare §78 is not a section of ANY document in the corpus
+1	citations	bare §79 is not a section of ANY document in the corpus
+1	citations	bare §81 is not a section of ANY document in the corpus
+2	citations	bare §85 is not a section of ANY document in the corpus
+3	citations	bare §85.2 is not a section of ANY document in the corpus
+1	citations	bare §86 is not a section of ANY document in the corpus
+6	citations	bare §89 is not a section of ANY document in the corpus
+2	citations	bare §89.2 is not a section of ANY document in the corpus
+5	citations	bare §89.3 is not a section of ANY document in the corpus
+1	citations	bare §90.3 is not a section of ANY document in the corpus
+2	citations	bare §91 is not a section of ANY document in the corpus
+1	citations	bare §92 is not a section of ANY document in the corpus
+3	citations	bare §92.4 is not a section of ANY document in the corpus
+4	citations	bare §93.2 is not a section of ANY document in the corpus
+2	citations	bare §93.3 is not a section of ANY document in the corpus
+3	citations	bare §94 is not a section of ANY document in the corpus
+3	citations	bare §94.2 is not a section of ANY document in the corpus
+1	citations	bare §94.4 is not a section of ANY document in the corpus
+5	citations	bare §94.7 is not a section of ANY document in the corpus
+2	citations	bare §97 is not a section of ANY document in the corpus
+3806	deep-citations	a DOTTED citation in Rust — code cites at most an H2 (AGENTS.md §2 rule 8); move the deeper reference into the surrounding prose or cite the H2 alone
+954	plan-citations	`PLAN.md` is cited from outside itself — it is a JOURNAL, renumbered and cut, and ~97% of citations into it are already dead. Promote the fact to an ADR and cite that instead
+117	rot-markers	"does not exist" asserts STATE, not reason — a claim like this was true when typed and carries no expiry. Put it in a test or a generated artifact, or rewrite it as the reason that will still hold
+8	rot-markers	"does not yet" asserts STATE, not reason — a claim like this was true when typed and carries no expiry. Put it in a test or a generated artifact, or rewrite it as the reason that will still hold
+106	rot-markers	"has never" asserts STATE, not reason — a claim like this was true when typed and carries no expiry. Put it in a test or a generated artifact, or rewrite it as the reason that will still hold
+30	rot-markers	"is not built" asserts STATE, not reason — a claim like this was true when typed and carries no expiry. Put it in a test or a generated artifact, or rewrite it as the reason that will still hold
+323	rot-markers	"is the only" asserts STATE, not reason — a claim like this was true when typed and carries no expiry. Put it in a test or a generated artifact, or rewrite it as the reason that will still hold
+90	rot-markers	"no such" asserts STATE, not reason — a claim like this was true when typed and carries no expiry. Put it in a test or a generated artifact, or rewrite it as the reason that will still hold
+13	rot-markers	"not implemented" asserts STATE, not reason — a claim like this was true when typed and carries no expiry. Put it in a test or a generated artifact, or rewrite it as the reason that will still hold
+71	rot-markers	"not yet" asserts STATE, not reason — a claim like this was true when typed and carries no expiry. Put it in a test or a generated artifact, or rewrite it as the reason that will still hold
+6	rot-markers	"nothing starts" asserts STATE, not reason — a claim like this was true when typed and carries no expiry. Put it in a test or a generated artifact, or rewrite it as the reason that will still hold

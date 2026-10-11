@@ -1,0 +1,248 @@
+/* The fleet page's whole stylesheet.
+ *
+ * ADR-037 ruled the accent and docs/brand/HANDOFF.md carries the measured
+ * contrast: #C06139 on dark chrome is 4.51, which is why the accent here is
+ * `accent` and not the ruled `accent_on_light` #B0512F - that one reads 3.65 on
+ * this ground, the family's weakest dark number.
+ *
+ * Everything below the dashboard rules reuses the shapes the dashboard already
+ * had: the same panel, the same table, the same pill. A management surface that
+ * introduced a second visual language would read as a second product.
+ */
+
+:root{
+  --bg:#111111; --panel:#191b1e; --panel-lift:#202327; --line:#2a2d31;
+  --text:#f4f6f8; --muted:#98a1ab;
+  --accent:#c06139; --accent-bright:#d07a4e; --accent-deep:#8f3f22;
+  --up:#5aa87b; --down:#c0503a; --unknown:#5a6068; --warn:#c9973f;
+  /* **Live: a fact observed on the machine right now**, as opposed to
+     something its manifest or its document DECLARES. Blue because the five
+     colours above are all verdicts — good, bad, waiting, unknown, this
+     machine's accent — and a lease is none of those: it is neither healthy nor
+     unhealthy, it is simply what is true this second. Reserved for that
+     meaning, so the next observed fact inherits it instead of inventing a
+     sixth hue. */
+  --live:#5b8fd6;
+  --r:14px;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0; background:var(--bg); color:var(--text);
+  font-family:Geist,"Geist Variable",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  font-size:14px; line-height:1.45;
+  display:grid; grid-template-columns:308px 1fr;
+}
+code,.mono{font-family:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+
+aside{
+  border-right:1px solid var(--line); padding:22px 18px;
+  display:flex; flex-direction:column; gap:14px; min-height:100vh;
+  background:linear-gradient(180deg,#141518 0%,var(--bg) 220px);
+}
+aside .lockup svg{width:196px;height:auto;display:block;margin:2px 0 6px 2px}
+aside h2{
+  font-size:11px; letter-spacing:.13em; text-transform:uppercase;
+  color:var(--muted); font-weight:500; margin:6px 0 2px 2px;
+}
+#cards{display:flex;flex-direction:column;gap:10px}
+
+.card{
+  background:var(--panel); border:1px solid var(--line); border-radius:var(--r);
+  padding:13px 14px; cursor:pointer; text-align:left; width:100%;
+  color:inherit; font:inherit; display:block;
+  transition:border-color .14s, background .14s, transform .14s;
+}
+.card:hover{background:var(--panel-lift); border-color:#3a3e44; transform:translateY(-1px)}
+.card[aria-current="true"]{border-color:var(--accent); background:var(--panel-lift)}
+.card:focus-visible{outline:2px solid var(--accent-bright); outline-offset:2px}
+.card .top{display:flex;align-items:center;gap:9px}
+.card .name{font-weight:550;letter-spacing:-.005em}
+.card .role{
+  margin-left:auto; font-size:10px; letter-spacing:.09em; text-transform:uppercase;
+  color:var(--accent); border:1px solid rgba(192,97,57,.35);
+  border-radius:999px; padding:2px 8px; white-space:nowrap;
+}
+.card .sub{color:var(--muted);font-size:12px;margin-top:5px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--unknown);flex:none}
+.dot.up{background:var(--up);box-shadow:0 0 0 3px rgba(90,168,123,.15)}
+.dot.down{background:var(--down);box-shadow:0 0 0 3px rgba(192,80,58,.15)}
+
+main{padding:30px 34px;min-width:0}
+.empty{color:var(--muted);margin-top:12vh;text-align:center}
+
+header.machine{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:6px}
+header.machine h1{font-size:25px;font-weight:600;letter-spacing:-.02em;margin:0}
+header.machine .where{color:var(--muted)}
+.idline{color:#6d757e;font-size:12px;margin-bottom:22px}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(258px,1fr));gap:15px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:17px 18px}
+.panel h3{
+  font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:var(--muted);
+  font-weight:500;margin:0 0 13px;
+}
+.wide{grid-column:1/-1}
+/* **A narrow panel opts OUT of the grid's auto-fit stretch.** `.grid`'s
+ * columns are `minmax(258px,1fr)`, so an ordinary panel fills whatever share
+ * of the row it is given — right for a card of key/value rows, wrong for one
+ * whose content is inherently short (the A/B slot card, BRIEFING-001). */
+.panel.narrow{max-width:280px}
+/* The four Power cards: title, an icon-only button, then the sentence saying
+ * what it does — one uniform layout for all four (BRIEFING-001, and the
+ * maintainer's 2026-09-13 ruling that the title already names the button).
+ * The icon is sized up because it is now the whole button. */
+.power-actions{display:flex;justify-content:center;margin:4px 0 10px}
+.op.icon{font-size:22px;line-height:1;min-width:52px;padding:10px 14px}
+.power-what{text-align:center}
+.manifest-text{
+  white-space:pre-wrap;word-break:break-word;background:#141619;border:1px solid var(--line);
+  border-radius:9px;padding:10px 12px;margin-top:8px;font-size:12px;max-height:260px;overflow:auto;
+}
+.kv{display:flex;justify-content:space-between;gap:12px;padding:5px 0}
+.kv+.kv{border-top:1px solid rgba(255,255,255,.045)}
+.kv .k{color:var(--muted)}
+.big{font-size:27px;font-weight:600;letter-spacing:-.02em}
+.bar{height:7px;border-radius:999px;background:#26292e;overflow:hidden;margin:11px 0 7px}
+.bar>i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent-bright))}
+.sub{color:var(--muted);font-size:12px}
+
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{
+  text-align:left;font-size:10px;letter-spacing:.11em;text-transform:uppercase;
+  color:var(--muted);font-weight:500;padding:0 10px 8px 0;
+}
+td{padding:6px 10px 6px 0;border-top:1px solid rgba(255,255,255,.045);white-space:nowrap}
+td.num,th.num{text-align:right}
+.pill{
+  display:inline-block;font-size:11px;padding:2px 9px;border-radius:999px;
+  border:1px solid var(--line);color:var(--muted);
+}
+.pill.kiosk{color:var(--accent);border-color:rgba(192,97,57,.4)}
+.pill.on{color:var(--up);border-color:rgba(90,168,123,.4)}
+.pill.off{color:var(--muted)}
+.pill.bad{color:var(--down);border-color:rgba(192,80,58,.45)}
+.pill.hold{color:var(--warn);border-color:rgba(201,151,63,.45)}
+/* **Filled, where every other pill is outlined.** The hue alone would make this
+   look like a sixth kind of declaration sitting beside `devices display`, which
+   is the exact confusion the badge exists to end — four services on the
+   maintainer's board declare a display and one is drawing. The fill says
+   OBSERVED at a glance, before the colour has been decoded. */
+.pill.live{
+  color:var(--live);border-color:rgba(91,143,214,.5);
+  background:rgba(91,143,214,.12);
+}
+.fail{color:var(--down)}
+.warn{color:var(--warn)}
+.note{color:var(--muted);font-size:12px;margin-top:9px}
+
+/* ---- the operation row -------------------------------------------------- */
+/* The maintainer asked for the operations to sit in one row at the top right
+ * of the screen (.rulings/ R-331). It is the frame every page below hangs on,
+ * so it is drawn once by the shell and never by a view. */
+
+header.machine .ops{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+.op{
+  background:var(--panel); border:1px solid var(--line); border-radius:10px;
+  color:var(--text); font:inherit; font-size:13px; padding:7px 14px;
+  cursor:pointer; white-space:nowrap;
+  transition:border-color .14s, background .14s, color .14s;
+}
+.op:hover{background:var(--panel-lift);border-color:#3a3e44}
+.op:focus-visible{outline:2px solid var(--accent-bright);outline-offset:2px}
+.op[aria-current="true"]{border-color:var(--accent);color:var(--accent);background:var(--panel-lift)}
+.op[disabled]{opacity:.45;cursor:not-allowed}
+.op.danger{border-color:rgba(192,80,58,.4)}
+.op.danger:hover{border-color:var(--down)}
+.op .spin{color:var(--muted)}
+
+/* ---- shared page furniture ---------------------------------------------- */
+
+.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+.toolbar label{color:var(--muted);font-size:12px}
+select,input[type=text],input[type=search],textarea{
+  background:#141619;color:var(--text);border:1px solid var(--line);
+  border-radius:9px;padding:6px 9px;font:inherit;font-size:13px;
+}
+textarea{width:100%;resize:vertical}
+select:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent-bright);outline-offset:1px}
+.count{color:var(--muted);font-size:12px}
+
+tr.row{cursor:pointer}
+tr.row:hover td{background:rgba(255,255,255,.02)}
+tr.open td{background:rgba(192,97,57,.06)}
+td.wrap{white-space:normal}
+/* **`white-space:normal` and not decoration.** The table rule above is
+ * `nowrap`, which makes a cell's MINIMUM width its whole text — so one drawer
+ * holding a paragraph of the machine's own prose widens the table past its
+ * panel and pushes every other column's value off the right edge. Seen doing
+ * exactly that on 2026-09-05, on the drawer that carries the reachability
+ * caveat, which is the longest sentence on the page. */
+.drawer td{background:#141619;padding:14px 14px 16px;white-space:normal;overflow-wrap:anywhere}
+.drawer .kv{padding:4px 0}
+.drawer h4{margin:0 0 8px;font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:var(--muted);font-weight:500}
+
+/* ---- a plan, and the confirmation against it ---------------------------- */
+/* ADR-012 §7.1: the machine answers a mutating operation with what it would
+ * do and does nothing. This is that answer, rendered. Every word in it is the
+ * machine's own - see web/plan.js. */
+
+.plan{border:1px solid rgba(201,151,63,.35);background:#1a1714;border-radius:12px;padding:15px 16px;margin-top:12px}
+.plan h4{margin:0 0 9px;font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:var(--warn);font-weight:500}
+.plan .consequence{font-weight:550;margin-bottom:10px}
+.plan ul{margin:6px 0 0;padding-left:18px}
+.plan li{margin:3px 0}
+.plan .cmd{display:block;margin-top:10px;font-size:12px;color:var(--muted);word-break:break-all}
+.plan .acts{display:flex;gap:9px;margin-top:14px}
+.go{
+  background:var(--accent-deep);border:1px solid var(--accent);color:#fff;
+  border-radius:10px;padding:7px 16px;font:inherit;font-size:13px;cursor:pointer;
+}
+.go:hover{background:var(--accent)}
+.go:focus-visible{outline:2px solid var(--accent-bright);outline-offset:2px}
+.cancel{background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:10px;padding:7px 16px;font:inherit;font-size:13px;cursor:pointer}
+.cancel:hover{color:var(--text);border-color:#3a3e44}
+
+.said{border:1px solid var(--line);background:#141619;border-radius:12px;padding:14px 15px;margin-top:12px;white-space:pre-wrap;word-break:break-word}
+.said.bad{border-color:rgba(192,80,58,.4)}
+.said.good{border-color:rgba(90,168,123,.35)}
+
+/* ---- the journal -------------------------------------------------------- */
+
+.jrows{font-size:12.5px;border-collapse:collapse;width:100%}
+.jrows td{border-top:1px solid rgba(255,255,255,.04);padding:4px 10px 4px 0;vertical-align:top}
+.jrows td.msg{white-space:pre-wrap;word-break:break-word;width:100%}
+.jrows td.when,.jrows td.svc,.jrows td.sev{white-space:nowrap;color:var(--muted)}
+.jrows tr.sev-error td.sev,.jrows tr.sev-error td.msg{color:var(--down)}
+.jrows tr.sev-warn td.sev,.jrows tr.sev-warn td.msg{color:var(--warn)}
+.jrows tr.sev-debug td{color:#6d757e}
+.jscroll{max-height:62vh;overflow:auto;border:1px solid var(--line);border-radius:12px;padding:0 14px}
+.live{display:inline-flex;align-items:center;gap:7px}
+.live .dot.up{animation:pulse 2s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.35}}
+
+/* ---- the capture -------------------------------------------------------- */
+
+.shot{max-width:100%;height:auto;border:1px solid var(--line);border-radius:12px;display:block;margin-top:12px;background:#000}
+
+/* ---- configuration ------------------------------------------------------- */
+/* The schema-driven configuration screen — plan §5.3, `.rulings/` R-162
+ * (Wave 3c). One `.field` per schema property: its `prompt` as the label,
+ * its `description` as `.help` underneath, same shape a `dl` would give but
+ * without fighting a definition list's own spacing rules. */
+
+.op.small{padding:4px 10px;font-size:12px}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px}
+.field input,.field select,.field textarea{width:100%;max-width:420px}
+.field .help{color:#6d757e;font-size:11.5px;margin-top:5px;line-height:1.4}
+/* R-168: the maintainer asked that it be more obvious the version cannot be
+ * edited — a locked field gets a visible border and a dimmed input, not just a
+ * disabled attribute a reader has to notice on their own. */
+.field-locked{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:#141619}
+.field-locked input,.field-locked select{opacity:.6;cursor:not-allowed}
+.field-locked .sub.locked{color:var(--warn)}
+.named-entry{border:1px solid var(--line);border-radius:12px;padding:13px 14px;margin-bottom:12px;background:#141619}
+.named-entry-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.named-entry-add{display:flex;gap:9px;align-items:center}
+.save-bar{margin-top:6px}

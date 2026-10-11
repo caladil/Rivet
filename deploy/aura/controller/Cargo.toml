@@ -1,0 +1,111 @@
+# **Aura's controller, as a Rivet application.** Go, statically linked.
+#
+# `PLAN.md` §102.27 names the objective: be ready to start implementing Shared
+# Rivets, with Aura's controller and its renderer both running on a board
+# (.rulings/ R-348). This is the first half, and it is here to make what
+# happens to it a MEASUREMENT rather than a prediction.
+#
+# ## Nothing here is built by cargo
+#
+# The binary comes from Aura's own tree:
+#
+#   GOOS=linux GOARCH=arm64 CGO_ENABLED=0 \
+#     go build -trimpath -tags timetzdata -ldflags="-s -w" \
+#     -o aura-controller ./cmd/aura-controller
+#
+# `CGO_ENABLED=0` produces a statically linked binary that needs no loader and
+# no libc — which is `ADR-015` §3.1's *"a static C or Go binary is a valid
+# package and will work"*, and the first Go artifact behind that sentence.
+# `-tags timetzdata` embeds the IANA database, because a Rivet has no
+# `/usr/share/zoneinfo` and `time.LoadLocation` would otherwise fall back to
+# UTC on a machine whose owner set a timezone.
+#
+# ## This is the CONTROLLER and not Aura
+#
+# `aura-renderer` is the other half, and it is now packaged too — `PLAN.md`
+# §104.25 and §104.27.
+#
+# ~~It cannot run here: this board's kernel has no DRM at all, `/sys/class/drm`
+# is absent, so there is no `/dev/dri`, no GPU and no surface.~~ **STRUCK
+# 2026-08-31 — that was true and was a kernel-configuration question
+# (`ADR-024`), exactly as it said, and the configuration was the answer.**
+# `CONFIG_I2C_BRCMSTB` was a module, so `vc4_hdmi_bind` returned `-EPROBE_DEFER`
+# for a DDC bus with no driver and VC4 never bound. Built in, it binds, and the
+# board reports `GL_RENDERER = V3D 4.2.14.0` (`PLAN.md` §104.15).
+#
+# Two other claims above were wrong when written and are corrected here rather
+# than quietly deleted: the renderer draws through **DRM**, not Wayland — a
+# Rivet has no compositor and is not going to have one (`§104.25.2`) — and
+# there is therefore no surface to want.
+#
+# ## What still does not work, which is the pair and not either half
+#
+# ~~These two do not have a channel between them.~~ **STRUCK 2026-08-31, the
+# same day it was written.** `ADR-015` §5.3 was parsed by
+# `rivet-core`, printed by `cargo rivet inspect` and not implemented in
+# `rivet-sysd`; it is implemented now. This half declares `provides` below, the
+# renderer declares `connects`, and the supervisor chowns the socket file to the
+# renderer's uid for as long as it runs.
+#
+# **One consumer per endpoint**, because the grant is a chown and a chown names
+# one uid. If two applications declare `connects` on this endpoint, both are
+# refused by name and neither is started.
+[workspace]
+
+[package]
+name = "aura-controller"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[package.metadata.rivet]
+kind    = "daemon"
+restart = "always"
+ready   = "none"
+# Static Go: no loader, no libc, no closure.
+library = []
+
+# **`egress`, added 2026-09-03, and it is an HONESTY fix and not a
+# confinement.**
+#
+# This program fetches the National Weather Service every twenty minutes
+# (`PLAN.md` §112.5). Until now this table had no `network` key at all, so it
+# took the default — `none`, which `ADR-015` §5.1 defines as *"no interfaces at
+# all"*. The audit of 2026-09-03 found the pair (`PLAN.md` §123.2 item 3): a
+# manifest saying the program reaches nothing, a program on the internet, and a
+# `Manifest::unenforced` that reported every network value EXCEPT `none` — so
+# the build said nothing, the start said nothing, and the operator read `none`.
+#
+# **This changes what the machine does not one bit.** There is no network
+# namespace on this build (`ADR-015` §6) and `cmd/rivet-sysd` has no reference
+# to `Network` at all; the controller fetched the NWS before and fetches it
+# now. What changes is that the declaration is true, and that `unenforced` —
+# fixed in the same pass — says `network` whatever the value is. Anyone reading
+# this as "the controller is now confined" has read it backwards.
+network = "egress"
+
+# **The kiosk socket, opened by Rivet.** `ADR-015` §5.2, §5.3.
+#
+# The name matches `ipc.SocketName` in Aura, which is the last component of that
+# project's own `SocketPath` — so the supervisor calls the descriptor what the
+# controller looks for in `LISTEN_FDNAMES`.
+#
+# Before this, `aura-controller` died at `listen unix /run/aura/kiosk.sock:
+# bind: no such file or directory`. It runs as its own unprivileged uid and
+# cannot create a directory under a root-owned `/run`, which is §5.3's point:
+# where the socket lives is not the application's to say.
+# **`provides`, not `listen`, since 2026-08-31.**
+#
+# The two are the same socket and the same descriptor handoff: the supervisor
+# folds a `provides` into the `listen` set, binds it, and passes the fd with the
+# endpoint's name in `LISTEN_FDNAMES`. So `ipc.SocketName` still finds it and
+# nothing changes on this side of the wire.
+#
+# What `provides` adds is the half `listen` cannot express: another application
+# may be granted the socket FILE. `listen` alone leaves it root-owned `0600`,
+# which is why the renderer could not reach the controller no matter what either
+# manifest said.
+provides = ["socket:kiosk.sock"]
+
+[dependencies]

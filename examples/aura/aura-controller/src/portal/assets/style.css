@@ -1,0 +1,581 @@
+/* Aura's portal — the family stylesheet, in Aura's colour.
+ *
+ * **Shared DNA, not a shared file.** Aura, TempMon and their siblings are
+ * separate projects and will drift; the maintainer's decision on 2026-09-20 was
+ * to give them a consistent birth and let them diverge as siblings do. So the
+ * neutrals, the token NAMES, the header pattern and the measure are the
+ * family's reference stylesheet's verbatim, and what is Aura's is the accent
+ * and what the page is for.
+ *
+ * # The accent is the mark's own colour
+ *
+ * `#2f8bf9`, taken from the three concentric circles beside the wordmark
+ * rather than picked: that mark is the favicon and the colour reference, and a
+ * second blue chosen by eye would have been a third opinion about what Aura
+ * looks like.
+ *
+ * **Its dark twin is DERIVED, not invented**, by the family's own method:
+ * hold the hue angle and the saturation exactly, and
+ * lift HSL lightness by the smallest step that clears 4.5:1 against BOTH dark
+ * grounds. `#2f8bf9` is HSL(212.7°, 94.4%, 58.0%) and measures 5.12:1 on
+ * `--page` but only **3.74:1** on `--surface`, which is the raised card — so
+ * it fails exactly where most of this page's chrome sits. Lifted to 65.1%,
+ * `#529EFA` is HSL(212.9°, 94.4%, 65.1%) and measures **6.32:1** and
+ * **4.62:1**. Hue and saturation are unchanged, so it is the same blue.
+ *
+ * # Both themes, from the browser
+ *
+ * `prefers-color-scheme` decides, and `data-theme` on the root overrides it in
+ * either direction — the same two-layer arrangement the family uses, so a
+ * viewer who has chosen is not overruled by their system.
+ */
+
+/* **Barlow, vendored and served from this binary — never fetched.**
+ *
+ * The maintainer chose vendoring over a webfont on 2026-09-20. **The reason
+ * is not the board's manifest**: a `@font-face` URL is fetched by the
+ * VIEWER'S BROWSER and has nothing to do with what the application may
+ * connect to, so `network = "none"` is no argument either way.
+ *
+ * The two reasons that DO hold here:
+ *
+ * 1. **It fails silently offline.** A browser on a LAN with no route to the
+ *    internet gets the fallback stack and nothing says so.
+ * 2. **It is a third-party request from the viewer's browser**, on a page
+ *    that configures a household's own readings and accounts. Every load
+ *    would tell a font CDN the viewer's address and which page they opened.
+ *
+ * Three weights, because the sheet uses three: 400 for body, 600 for labels
+ * and buttons, 700 for the wordmark and headings. `OFL.txt` ships beside them
+ * — the SIL Open Font License requires the licence to travel with the font,
+ * and the portal serves it at `/static/fonts/OFL.txt`.
+ */
+@font-face {
+    font-family: "Barlow";
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url("/static/fonts/Barlow-Regular.ttf") format("truetype");
+}
+@font-face {
+    font-family: "Barlow";
+    font-style: normal;
+    font-weight: 600;
+    font-display: swap;
+    src: url("/static/fonts/Barlow-SemiBold.ttf") format("truetype");
+}
+@font-face {
+    font-family: "Barlow";
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+    src: url("/static/fonts/Barlow-Bold.ttf") format("truetype");
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+    /* --- the family neutrals, light ------------------------------------- */
+    --page: #F4F6F8;          /* family `paper` */
+    --surface: #FFFFFF;
+    --ink: #171A22;
+    --ink-2: #484E5E;
+    --ink-3: #838A9C;
+    --rule-soft: #E3E6EE;
+    --rule: #D2D6E0;
+
+    /* --- Aura's accent, from the mark ----------------------------------- */
+    --accent: #2f8bf9;
+    --on-accent: #FFFFFF;
+
+    /* --- state ----------------------------------------------------------
+       Green means *connected* and nothing else on this page; red is a
+       refusal. Neither is a data hue — this portal draws no data. */
+    --ok: #1F7A5C;
+    --danger: #A3382B;
+    --danger-ink: #FFFFFF;
+
+    /* --- type ------------------------------------------------------------
+       Every size is a rem so this one declaration scales the page, and a
+       browser's own font-size preference still applies. */
+    --font: "Barlow", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+
+    /* --- measure ---------------------------------------------------------
+       The width the content is centred in. The app title sits INSIDE it,
+       which is the whole of why the title aligns to the content's left
+       margin rather than to the viewport's. */
+    --measure: 58rem;
+    --gutter: 1.25rem;
+    --radius: 8px;
+
+    /* **Native controls follow this, not our tokens.** A `<select>`, a
+       scrollbar and a focus ring are painted by the browser from the system's
+       scheme unless told otherwise — so a viewer whose system is dark, who
+       chooses Light here, would get a light page with a black dropdown in it.
+       Declared in every theme block below for that reason. */
+    color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+        color-scheme: dark;
+        --page: #171A22;
+        --surface: #2B3340;
+        --ink: #F4F6F8;
+        --ink-2: #C6CCD8;
+        --ink-3: #98A0B0;
+        --rule-soft: #3A4351;
+        --rule: #4A5464;
+
+        /* Derived; see the header. 6.32:1 on --page, 4.62:1 on --surface. */
+        --accent: #529EFA;
+        --on-accent: #171A22;
+
+        --ok: #57B894;
+        --danger: #DB8277;
+        --danger-ink: #171A22;
+    }
+}
+
+:root[data-theme="dark"] {
+    color-scheme: dark;
+    --page: #171A22;
+    --surface: #2B3340;
+    --ink: #F4F6F8;
+    --ink-2: #C6CCD8;
+    --ink-3: #98A0B0;
+    --rule-soft: #3A4351;
+    --rule: #4A5464;
+    --accent: #529EFA;
+    --on-accent: #171A22;
+    --ok: #57B894;
+    --danger: #DB8277;
+    --danger-ink: #171A22;
+}
+
+body {
+    background: var(--page);
+    color: var(--ink);
+    font-family: var(--font);
+    font-size: 16px;
+    line-height: 1.5;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+}
+
+a { color: var(--accent); text-decoration: none; }
+
+/* --- layout -------------------------------------------------------------
+   `.layout` is kept as the outer element's class so the markup did not have
+   to be rewritten around it; what changed is that it centres a measure
+   instead of arranging a sidebar beside a column. */
+
+.layout {
+    width: min(var(--measure), 100% - 2 * var(--gutter));
+    margin-inline: auto;
+    padding-block: 1.75rem 3rem;
+}
+
+.content { display: block; }
+
+/* --- header -------------------------------------------------------------
+   Identity left, section buttons right, one rule beneath. The sidebar this
+   replaced put navigation down the side of the page; the maintainer's
+   2026-09-20 decision was that the family drives sections from the title bar,
+   which is what the family's reference page does and what TempMon is being
+   corrected towards. */
+
+.app-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+    padding-bottom: 0.9rem;
+    border-bottom: 1px solid var(--rule);
+    margin-bottom: 1.75rem;
+}
+
+.identity {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    cursor: pointer;
+    user-select: none;
+}
+
+.mark { width: 1.6rem; height: 1.6rem; color: var(--accent); flex: none; }
+
+.identity h1 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    color: var(--ink);
+}
+
+.actions { display: flex; gap: 0.3rem; flex-wrap: wrap; }
+
+/* --- buttons ------------------------------------------------------------ */
+
+button {
+    font-family: inherit;
+    font-size: 0.9rem;
+    font-weight: 600;
+    padding: 0.45rem 1rem;
+    border-radius: var(--radius);
+    border: 1px solid var(--rule);
+    background: var(--surface);
+    color: var(--ink);
+    cursor: pointer;
+    transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+}
+
+button:hover { border-color: var(--accent); color: var(--accent); }
+
+button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.btn {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--on-accent);
+}
+
+.btn:hover {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--on-accent);
+    filter: brightness(1.08);
+}
+
+.btn-full { width: 100%; }
+.btn-sm { font-size: 0.8rem; padding: 0.3rem 0.7rem; }
+
+.btn-green {
+    background: var(--ok);
+    border-color: var(--ok);
+    color: #FFFFFF;
+}
+
+/* **The section buttons.** Icon-only with a real label for assistive
+   technology and a tooltip for everybody else — six labelled buttons would
+   wrap the header on a phone, which is the layout this pattern exists to
+   avoid. */
+.nav-item {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.1rem;
+    height: 2.1rem;
+    padding: 0;
+    color: var(--ink-2);
+}
+
+.nav-item:hover { color: var(--accent); border-color: var(--accent); }
+
+.nav-item.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--on-accent);
+}
+
+.nav-icon { width: 1.05rem; height: 1.05rem; }
+
+.nav-item[data-tip]::after {
+    content: attr(data-tip);
+    position: absolute;
+    top: calc(100% + 0.4rem);
+    right: 0;
+    white-space: nowrap;
+    font-size: 0.75rem;
+    font-weight: 500;
+    padding: 0.25rem 0.5rem;
+    border-radius: 6px;
+    background: var(--ink);
+    color: var(--page);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.12s;
+    z-index: 10;
+}
+
+.nav-item:hover[data-tip]::after,
+.nav-item:focus-visible[data-tip]::after { opacity: 1; }
+
+/* --- the actions menu ---------------------------------------------------
+   One button, and the actions behind it. The six section buttons are
+   navigation and stay visible; these are things a person does rarely, and
+   laying them flat beside the sections is what takes a title bar from seven
+   icons to nine and then wraps it. */
+
+.menu-wrap { position: relative; display: inline-flex; }
+
+.menu {
+    position: absolute;
+    top: calc(100% + 0.35rem);
+    right: 0;
+    min-width: 11rem;
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: var(--radius);
+    padding: 0.25rem;
+    /* Above the section panels, and above a tooltip. */
+    z-index: 20;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.14);
+}
+
+/* Read by a screen reader, drawn for nobody. The Appearance control sits
+   under a heading a sighted person reads as its label; somebody hearing the
+   page gets the label on the control itself. */
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.menu-title {
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: var(--ink);
+    padding: 0.35rem 0.6rem 0.45rem;
+}
+
+.menu-heading {
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    padding: 0.3rem 0.6rem 0.2rem;
+}
+
+.menu-rule { border: 0; border-top: 1px solid var(--rule-soft); margin: 0.35rem 0; }
+
+.menu-field { display: block; padding: 0.1rem 0.6rem 0.35rem; }
+.menu-field select { width: 100%; }
+
+.menu-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0.45rem 0.6rem;
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--ink-2);
+    background: none;
+    border: 0;
+    border-radius: 6px;
+    text-align: left;
+    cursor: pointer;
+}
+
+/* **The one destructive thing in this menu, coloured as such.** Restore
+   replaces every setting on the machine; the preference two groups above it
+   changes what one person's screen looks like. Reading the label carefully
+   should not be the only thing between them. */
+.menu-item.danger { color: var(--danger); }
+.menu-item.danger:hover { background: var(--rule-soft); color: var(--danger); }
+
+.menu-item:hover {
+    background: var(--rule-soft);
+    color: var(--accent);
+    border: 0;
+}
+
+.menu-icon { width: 1rem; height: 1rem; flex: none; }
+
+/* --- sections ----------------------------------------------------------- */
+
+.section { display: none; }
+.section.active { display: block; }
+
+.section-title {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--ink);
+    margin-bottom: 0.9rem;
+}
+
+.subsection-label {
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin: 1.4rem 0 0.6rem;
+}
+
+.divider { border: 0; border-top: 1px solid var(--rule-soft); margin: 1.5rem 0; }
+
+/* --- fields ------------------------------------------------------------- */
+
+.field { margin-bottom: 1.1rem; }
+
+.field label {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--ink-2);
+    margin-bottom: 0.3rem;
+}
+
+input[type="text"],
+input[type="password"],
+input[type="number"],
+input[type="time"],
+select,
+textarea {
+    width: 100%;
+    font-family: inherit;
+    font-size: 0.92rem;
+    color: var(--ink);
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: var(--radius);
+    padding: 0.45rem 0.65rem;
+}
+
+input:focus, select:focus, textarea:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: -1px;
+    border-color: var(--accent);
+}
+
+input[type="range"] { width: 100%; accent-color: var(--accent); }
+input[type="checkbox"] { accent-color: var(--accent); width: 1rem; height: 1rem; }
+
+.hint {
+    font-size: 0.8rem;
+    color: var(--ink-3);
+    margin-top: 0.3rem;
+    line-height: 1.45;
+}
+
+.hint code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.95em;
+    background: var(--rule-soft);
+    padding: 0.05rem 0.3rem;
+    border-radius: 4px;
+}
+
+.readonly-value {
+    font-size: 0.92rem;
+    color: var(--ink-2);
+    background: var(--rule-soft);
+    border: 1px solid var(--rule);
+    border-radius: var(--radius);
+    padding: 0.45rem 0.65rem;
+}
+
+.toggle-row {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    margin-bottom: 0.9rem;
+}
+
+.toggle-row label { font-size: 0.9rem; font-weight: 600; color: var(--ink-2); }
+
+.save-row { margin-top: 1.5rem; }
+
+/* --- the dashboard cards ------------------------------------------------ */
+
+.dash-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+    /* **Every row the same height, whatever is in it.** A grid row sizes to
+       its own tallest cell by default, so one long value — "Digital Rain —
+       Ice Blue" wraps to three lines where every other card is one — made
+       row one taller than row two and the whole grid look ragged. `1fr` on
+       the implicit rows makes them equal, so a card growing changes the size
+       of all of them or none. */
+    grid-auto-rows: 1fr;
+    gap: 0.8rem;
+    margin-bottom: 1.5rem;
+}
+
+.dash-card {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: var(--radius);
+    padding: 0.9rem 1rem;
+}
+
+.dash-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin-bottom: 0.25rem;
+}
+
+.dash-value { font-size: 1.05rem; font-weight: 600; color: var(--ink); }
+
+/* **The gap below is load-bearing.** Without it the status line sits on the
+   first row of cards and reads as a label for the card beneath it rather than
+   as a statement about the machine. It is the only line on this page that is
+   neither a heading nor inside a card, so nothing else was giving it room. */
+.dash-status {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    margin-bottom: 1.4rem;
+    font-size: 0.92rem;
+    color: var(--ink-2);
+}
+
+.status-dot {
+    width: 0.55rem;
+    height: 0.55rem;
+    border-radius: 50%;
+    background: var(--ink-3);
+    flex: none;
+}
+
+.status-dot.connected { background: var(--ok); }
+
+/* --- flash -------------------------------------------------------------- */
+
+.flash {
+    background: var(--surface);
+    border: 1px solid var(--accent);
+    border-left-width: 3px;
+    border-radius: var(--radius);
+    padding: 0.6rem 0.85rem;
+    margin-bottom: 1.25rem;
+    font-size: 0.9rem;
+    color: var(--ink);
+}
+
+/* --- tables (the schedule) ---------------------------------------------- */
+
+table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+
+th {
+    text-align: left;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    padding: 0.5rem 0.6rem;
+    border-bottom: 1px solid var(--rule);
+}
+
+td {
+    padding: 0.55rem 0.6rem;
+    border-bottom: 1px solid var(--rule-soft);
+    color: var(--ink-2);
+}

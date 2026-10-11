@@ -1,0 +1,42 @@
+# **The Aura card vocabulary** — `SPEC-04`.
+#
+# The one thing an Aura addon and the Aura renderer both have to agree on, and
+# the only part of Aura a third party ever links.
+#
+# ## Why the package is not `rivetos-aura-card`
+#
+# `ADR-033` §4 splits package names from source names because rivet.gg owns the
+# `rivet-*` namespace on crates.io, and every crate in this workspace that is
+# **Rivet's own machinery** carries the `rivetos-` package prefix as a result.
+#
+# This is not Rivet's machinery. It is an application's wire format, and
+# `cmd/femto` already made the argument for the case: the prefix means the
+# operating system, and a thing that is not the operating system should not
+# borrow its name. An addon author writing `aura-card = "0.1"` is naming Aura,
+# which is what they are actually integrating with.
+#
+# ## Zero dependencies, and that is a requirement rather than a preference
+#
+# `ADR-009` §3 asks the question for on-device binaries; `rivet_core::json`
+# answers it for a wire format — *"every wire format in it is a function that
+# writes and a function that reads, both visible."* The same answer holds here
+# for a second reason: this crate is the integration surface for programs Aura
+# did not build, so anything it drags in, it drags into somebody else's build.
+[package]
+name = "aura-card"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "The Aura card vocabulary — what an addon may say to the Aura renderer. SPEC-04."
+
+[lib]
+name = "aura_card"
+path = "src/lib.rs"
+
+# **Empty, and it must stay empty.** See the note above.
+[dependencies]
+
+[lints]
+workspace = true

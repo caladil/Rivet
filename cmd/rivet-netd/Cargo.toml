@@ -1,0 +1,53 @@
+[package]
+name = "rivetos-netd"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Rivet's network daemon. At Stage 1 it converges one interface and exits. ADR-014 §2."
+
+[dependencies]
+rivetos-core = { path = "../../rivet-core" }
+rivetos-config = { path = "../../rivet-config" }
+rivetos-adapter-net = { path = "../../rivet-adapter-net" }
+
+# Deliberately NOT here, with the reason recorded per ADR-009 §3:
+#
+#   ignition   AGENTS.md §8.4 requires it and it supplies the standard CLI
+#              surface, so its absence is a decision rather than an oversight.
+#              ADR-013 §7 item 3 measured Ignition against a boot process and
+#              found two conditions attached — every path must be passed
+#              explicitly, and `ignition::update` must not be reachable, which
+#              cannot be compiled out because Ignition declares no features.
+#              `cmd/rivet-initd` and `cmd/rivet-sysd` both took the
+#              same step for the same reason and neither depends on it either.
+#              This binary parses one flag; it joins them rather than being the
+#              one boot binary that links a configuration framework to avoid
+#              twenty lines of argument parsing. Revisit when ADR-006's
+#              `rivet` CLI arrives, which is the consumer Ignition was chosen
+#              for.
+#
+#              Amended 2026-08-23: this binary now DOES read a configuration
+#              file, so "reads no configuration file" is no longer part of the
+#              argument. The rest of it stands and is what carries the
+#              decision — and note that the file it reads is Rivet's own
+#              schema, which rivet-config owns. AGENTS.md §8.4's division is
+#              exactly that: rivet owns the schema, Ignition owns the
+#              mechanics.
+#   clap       the same argument, one level down.
+
+[lints.rust]
+# No syscalls here — they are all behind rivet-adapter-net's port.
+unsafe_code = "forbid"
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+
+[[bin]]
+# The PACKAGE is `rivetos-netd` and the BINARY is `rivet-netd`, which is what
+# /system/bin holds and what an operator types. ADR-033 §4.
+name = "rivet-netd"
+path = "src/main.rs"

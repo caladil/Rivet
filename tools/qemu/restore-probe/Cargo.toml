@@ -1,0 +1,37 @@
+# **The application `tools/qemu/adr-051-restore-proof.sh` backs up and
+# restores** — `ADR-051` §12, `.rulings/` R-183 D1.
+#
+# It holds one SQLite-format file in its data directory and implements BOTH
+# halves of the backup contract the way the contract tells an application to:
+# `GET` its backup route serves the file, `POST` its restore route checks the
+# whole body, writes it beside the live file and renames it into place, and
+# answers only once that is done. A third route replaces the file with other
+# bytes, so a proof can change the data between a backup and a restore.
+#
+# **It is a FIXTURE, not an example to copy wholesale.** The file is not a
+# database anybody opens — it is built to SQLite's header arithmetic so that
+# `rivet_core::backup::validate`'s rungs run on it — and it answers one
+# connection at a time. What it IS faithful to is the transport: the SDK's
+# `serve::Tls`, requiring a caller certificate from the fleet authority, on the
+# socket the supervisor hands over, behind the real `rivet-proxyd`.
+[workspace]
+
+[package]
+name = "restore-probe"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[dependencies]
+# **The SDK an adopter links**, with `serve` for the TLS server configuration
+# `ADR-046` §4.2 tells a backend to build.
+rivetos-sdk = { path = "../../../rivet-sdk", features = ["serve"] }
+# The server connection itself. Same version and features as the SDK's, so
+# there is one rustls in this build.
+rustls = { version = "0.23", default-features = false, features = ["std", "ring"] }
+
+[profile.release]
+panic = "abort"
+opt-level = "z"
+strip = true

@@ -1,0 +1,55 @@
+# **The facts call's first article** — an application that asks its machine
+# what it is, reads the supervisor's own state out of `/proc`, and reports both
+# into the journal.
+#
+# Three things this exists to prove on hardware, none of which this project has
+# done before (`ADR-057` §7):
+#
+#   1. a CONFINED application, with its own uid, gets an answer on
+#      `/run/rivet/facts` — the socket is `0666`, the runtime directory is in
+#      its ruleset, and nothing about that has ever run on a board.
+#   2. the two leaves of `SUPERVISOR_WINDOWS` are enough for an application to
+#      read the supervisor's own state, and `ADR-057` §5's table about `wchan`
+#      and `syscall` is a MEASUREMENT rather than a reading of the kernel's
+#      source. `ADR-056` §2.2 predicted it and said plainly it had not been
+#      measured as an application's uid.
+#   3. the PAIRING: a facts call that goes unanswered while the `/proc` read
+#      keeps working, which is the whole reason a screen is worth building.
+#
+# **Its name is in the platform.** `rivet_core::confinement::SUPERVISOR_WINDOWS`
+# lists it beside `rivet-fleetd` and `rivet-dashboard`; there is no manifest key
+# that would grant the window and there is deliberately not going to be one.
+[workspace]
+
+[package]
+name = "facts-probe"
+version = "1.0.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[package.metadata.rivet]
+kind    = "daemon"
+# **`never`, deliberately**, and the same argument `addon-probe-host` makes:
+# this probe reports and then idles. Under `always` a program that finished its
+# report would be restarted for ever and its journal would be the same lines on
+# repeat, which is a worse way to read a proof.
+restart = "never"
+ready   = "none"
+# **`none`.** Everything here is a unix socket and a file under `/proc`; a probe
+# that asked for egress would be asking for something it has no use for.
+network = "none"
+# **`private`, because the staged silence needs a socket of its own.** The
+# scratch directory `RIVET_APP_TMP` names is where `rivet_sdk::facts` binds the
+# socket an answer comes back to, and a machine that granted this application no
+# writable directory would refuse the whole call for a reason that has nothing
+# to do with the surface.
+state   = "private"
+library = []
+devices = []
+
+[dependencies]
+rivetos-sdk = { path = "../../../rivet-sdk" }
+
+[profile.release]
+opt-level = 2

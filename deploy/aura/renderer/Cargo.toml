@@ -1,0 +1,101 @@
+# ~~**Aura's renderer, as a Rivet application.** C++20 and Raylib, on DRM.~~
+#
+# **RETIRED 2026-09-04, ruled by the maintainer.** `build.sh` beside this file
+# refuses to run and says why at length. In short: `ADR-036` §6.2B had already
+# ruled the RUST renderer the one that ships, and `.rulings/` R-138 finished
+# this one off — Raylib's DRM backend opens `/dev/dri/card0` by path, and an
+# application is now granted the render node alone. A build of this would
+# package, install, start, and draw nothing.
+#
+# **The manifest is kept and so is `CMakeLists.txt`**, because the CMake file is
+# the only written record of how Raylib's DRM backend was cross-compiled against
+# the Buildroot sysroot. `AGENTS.md` §2 rule 3: a dormant file's findings are
+# often the only account of some external system's shape.
+#
+# Note the `[package] name` below is `aura-renderer`, which is also
+# `examples/aura/aura-renderer`'s. Two manifests claiming one application name
+# was a collision waiting to be found; retiring this one settles it.
+#
+# ~~What follows was true while it was built.~~
+#
+# `PLAN.md` §104.25. This is the second half of `§102.27`'s objective, which
+# was to have Aura's controller and its renderer both running on a board
+# (.rulings/ R-348) — and the half that needed a screen to exist first.
+#
+# ## Nothing here is built by cargo
+#
+# `build.sh` beside this file cross-compiles Aura's own C++ sources with the
+# Buildroot toolchain and Raylib's DRM backend. This crate carries the MANIFEST
+# and nothing else, exactly as `deploy/aura/controller` does for the Go half:
+#
+#   RIVET_AURA_SRC=<your Aura checkout> \
+#     tools/container/exec.sh deploy/aura/renderer/build.sh
+#   cargo rivet package --manifest-path deploy/aura/renderer/Cargo.toml \
+#     --binary <the built renderer>
+[workspace]
+
+[package]
+name = "aura-renderer"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[package.metadata.rivet]
+kind    = "daemon"
+restart = "always"
+ready   = "none"
+
+# **Empty, and that is a claim about the seven libraries it needs.**
+#
+# The renderer is dynamically linked — there is no static `libEGL` — and its
+# `NEEDED` set is `libGLESv2`, `libEGL`, `libdrm`, `libgbm`, `libstdc++`,
+# `libgcc_s` and `libc`. Every one is in `PUBLIC_LIBRARIES`, so every one is the
+# platform's to supply and none belongs in a closure (`SPEC-02` §4,
+# `PLAN.md` §104.26).
+#
+# `cargo rivet package` checks that rather than taking this on trust: an eighth
+# library would be refused by name, which is how `libatomic` was found and
+# dropped instead of promised.
+library = []
+
+# **`display` and `input`, which is what Raylib's DRM backend opens.**
+#
+# ~~`ADR-015` §6.2. `display` grants `/dev/fb0`, `/dev/dri/card*` AND
+# `/dev/dri/renderD*` together; the DRM backend uses `card0` through GBM for a
+# scanout surface and an EGL context.~~ **STRUCK 2026-09-04** — `ADR-036` §3.1
+# as amended (`.rulings/` R-138). A lessee's `display` expands to
+# `/dev/dri/renderD*` alone, so **this C++ renderer can no longer reach a
+# screen**: Raylib's DRM backend opens `card0` BY PATH, and the card node is
+# never granted to an application now.
+#
+# It is recorded rather than repaired, because repairing it means teaching
+# Raylib to take a descriptor it was handed rather than a path it chose, and
+# that is a change to Aura's own sources in another repository. Nothing on the
+# board depends on it: `ADR-036` §6.2B ruled the Rust renderer, and
+# `examples/aura/aura-renderer` — which takes a lease through `rivet-sdk` — is
+# what `[kiosk] auto-run` names.
+#
+# `input` grants every `/dev/input/event*`, which that backend reads directly —
+# no libinput, no udev, neither of which a Rivet has. That half is unchanged.
+#
+# **This application therefore owns the screen**, and only one may
+# (`§104.17.3`): several may be `enabled` and on the launcher's list, and
+# `[kiosk] auto-run` names the one that runs.
+devices = ["display", "input"]
+
+# **The controller's socket** — `ADR-015` §5.3, `cmd/rivet-sysd::endpoints`.
+#
+# This is the half that makes Aura one program rather than two. The renderer is
+# a CLIENT: it has no descriptor to be handed, so it opens a path, and the path
+# is not its to know. Declaring this makes the supervisor chown that socket file
+# to this application's uid before it starts, and tell it where the file is in
+# `RIVET_CONNECT` — which `kioskSocketPath` in Aura's `ipc_service.hpp` reads,
+# falling back to the literal `/run/aura/kiosk.sock` anywhere that grants
+# nothing.
+#
+# The name matches the controller's `provides = ["socket:kiosk.sock"]` and is
+# refused at package time if the halves disagree in shape.
+connects = ["aura-controller:kiosk.sock"]
+
+[dependencies]

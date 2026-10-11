@@ -1,0 +1,133 @@
+# **The default background pack** — `.rulings/` R-199 D1,
+# `docs/PLAN-Addon-Feature-Set-2026-09-19.md` T6.
+#
+# Digital Rain, Boxes and Solid, moved out of `examples/aura/aura-renderer`
+# constant for constant — plus Starfield, Aurora, Contours and Conway's Game
+# of Life, which were designed here (T8, §6 of the design candidate) and are
+# in `src/designed.rs` so that the word "moved" keeps meaning what it says
+# about `src/background.rs`. This is the pack's own workspace, like every other
+# example under `examples/` (`cargo rivet package` builds it for a board and
+# the root workspace is the operating system's — `aura-renderer/Cargo.toml`
+# carries the same line for the same reason).
+#
+# **It is an example of a MULTIPACK.** `provides-class = "aura-background"` is
+# the class every future background pack — including a second one somebody
+# else writes — will also declare (`docs/design-candidates/
+# Background-Addons-2026-09-19.md` §3.1: the soname rule is retired for this
+# class precisely so two packs of it can coexist, resolved by T2's enumeration
+# channel rather than by a filename collision).
+[workspace]
+
+[package]
+name = "aura-background-pack"
+# **0.1.1 because 0.1.0 shipped, and two installs have to be tellable apart.**
+#
+# `cargo rivet library --version` is never parsed and never compared — the
+# DIGEST is the identity — so this number exists for one reader: a person
+# looking at `/state/lib` on a board. It stayed at `0.1.0` while this pack went
+# from three backgrounds to seven and gained `Theme::animated`, so `rivet-06f5c`
+# carried `aura-background-pack-0.1.0-<hash>` and the only thing distinguishing
+# it from the current one was a hash nobody memorises.
+#
+# That mattered on 2026-09-20: the board's pack predated `animated`, the field
+# is `#[serde(default)]`, and Aura read `false` and froze the background —
+# exactly the failure the field's own note predicts. A version that had moved
+# would have said so in the library listing.
+#
+# **0.1.2 is the fast clear** — every background now opens with
+# `rivet_sdk::draw::clear` rather than a full-surface `draw::fill`, which that
+# function's own note measures at about eighteen milliseconds a frame on a Pi 4.
+#
+# **0.1.3 carries `disc_coverage`'s `sqrt`**, which is the same finding one
+# layer down: `f32::hypot` is an out-of-line libm call on musl/aarch64 and runs
+# once per pixel of every disc's bounding box. Conway's Game of Life is the
+# background that feels it, because it draws a disc per WARM cell and the
+# fading trail outnumbers the live population several times over.
+#
+# **0.1.4 is Starfield, rebuilt** — 2,400 stars instead of 320, drawn as
+# antialiased discs whose size carries depth instead of one-pixel squares.
+# `.rulings/` R-207: the maintainer set a 10 ms ceiling and ruled that it stays
+# on the CPU deliberately, so the pack keeps a worked example of each path.
+#
+# **0.1.5 is the GPU path** — `.rulings/` R-206 and R-207. Contours, Life and
+# Boxes now export a second entry point (`rivet_addon_draw_gl`) and declare
+# `Drawn::Either` in the catalogue; the other four are unchanged and still say
+# `Cpu`. This is the first version of this pack whose `describe()` a host reads
+# to decide *how* to ask for a frame rather than only *what* to ask for, so an
+# operator looking at `/state/lib` needs to be able to tell the two apart.
+#
+# It also carries `draw::clear`'s corrected X byte, which 0.1.4 did not: the
+# copy on `rivet-01` was built while that byte was `255`, so its output differs
+# from what this source produces. That alone would have justified the bump.
+version = "0.1.5"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+description = "The default background pack for Aura — seven backgrounds and twenty-two themes, as a Rivet shared rivet"
+
+# **`cdylib`, and cargo cannot name the file the loader will be asked for** —
+# `examples/probes/frame-probe/Cargo.toml` has the whole account, copied here
+# rather than re-derived: a library target name is a Rust identifier and a
+# class is a manifest token, the two alphabets disagree, so `build.rs` stamps
+# the real `DT_SONAME` and the packaging step renames the file to match.
+[lib]
+name = "aura_background_pack"
+crate-type = ["cdylib"]
+
+[package.metadata.rivet]
+kind = "library"
+provides-class = "aura-background"
+soname = "libaura-background.so.1"
+
+[dependencies]
+# **The addon protocol**, and specifically its drawing half — `rivetos_addon::frame`,
+# `.rulings/` R-199 D2. A path dependency because this pack lives in the same
+# repository as its protocol; `examples/probes/frame-probe` is the same choice
+# for the same reason.
+rivetos-addon = { path = "../../../rivet-addon" }
+
+# **The renderer's own drawing primitives** (`rivet_sdk::draw::fill`) and the
+# `Target` shape they and this pack's ported code both take — `features =
+# ["draw"]` and deliberately NOT `["screen"]`. `screen` links `libdrm`, which
+# this pack never touches: it never opens a display, it is handed a
+# `rivetos_addon::frame::Surface` over a buffer the HOST already owns
+# (`rivet-addon/src/frame.rs`'s "THE HOST OWNS THE SURFACE"). `draw` alone is
+# pure Rust — `rivetos-sdk/Cargo.toml`'s own note on why the two were split.
+rivetos-sdk = { path = "../../../rivet-sdk", features = ["draw"] }
+
+# **For the embedded font, not for `rivetos-sdk`'s copy of it.** `src/embedded_face.rs`
+# explains why this pack cannot call `rivet_sdk::text::Face::load` and instead
+# rasterises `assets/AuraRain.ttf` from bytes embedded at compile time.
+# Depending on it directly, at the same version range `rivetos-sdk`'s `draw`
+# feature already requests, resolves to one `fontdue` in the tree rather than
+# two — Cargo's ordinary feature unification, not a coincidence to maintain by
+# hand.
+fontdue = "0.9"
+
+# The JSON half of the addon protocol — `Addon::configure`'s settings map, the
+# same as `examples/probes/frame-probe`.
+serde_json = "1"
+
+[dev-dependencies]
+# `src/evidence.rs` — T6's proof that the port is byte-identical to the
+# baseline `aura-renderer` captured before this pack existed. Content hashing
+# only, never shipped: this crate's dependency table above carries nothing
+# that touches it.
+#
+# **The exact line `aura-renderer/Cargo.toml`'s `[dev-dependencies]` carries**,
+# copied rather than re-derived, for the reason given there: `features =
+# ["pure", "std"]` avoids `c/blake3_neon.c`, which needs the C cross-toolchain
+# `ADR-001` §4.4 rules out, and `blake3` over `sha2` is the algorithm this
+# workspace already chose for content hashing (`ADR-029` §7.2).
+blake3 = { version = "1", default-features = false, features = ["pure", "std"] }
+# The baseline manifest's schema (`Entry`/`Manifest`) needs `#[derive]`.
+serde = { version = "1", features = ["derive"] }
+
+[profile.release]
+opt-level = 3
+# **Not `abort`.** `rivetos_addon`'s generated entry catches an unwinding
+# panic at the boundary and answers `PANICKED`; `panic = "abort"` would take
+# the host process down instead, and the host is the renderer holding the
+# display. `examples/probes/frame-probe/Cargo.toml` carries the same line for
+# the same reason.
+panic = "unwind"

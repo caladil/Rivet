@@ -1,0 +1,229 @@
+# cargo-deny configuration. docs/ADR-010 §4 and §4.1 are what this file
+# implements — read those before changing this, not a generic template.
+#
+# ADR-010 §2.1: "Aggregate copyleft. Never link it." Rivet's own crates
+# stay MIT OR Apache-2.0 (ADR-010 §6.4) only because nothing copyleft ever
+# gets statically linked into a rivet-* binary. That will not be noticed
+# by review (§4) — a licence allowlist is the gate, and per §4.1 it is
+# adopted from the first crate, not at first release, because auditing a
+# few crates now is trivial and auditing several hundred later is not.
+#
+# Run: `cargo deny check` (needs `cargo install cargo-deny`, or on Arch
+# `pacman -S cargo-deny`). `cargo deny list` uses this same config to
+# produce the attribution manifest ADR-010 §4 calls for — wiring that into
+# CI is not yet done; there is no CI in this repository yet to wire it into.
+
+[graph]
+# aarch64-unknown-linux-musl is the only thing Rivet's own binaries ever
+# ship for (ADR-003; AGENTS.md §10.5). x86_64-unknown-linux-gnu is included
+# too because that is the host this check itself actually runs on (WSL2,
+# ADR-026 §6) — a dependency that is host-only (e.g. a build script helper)
+# should not go unchecked just because it never reaches the target.
+#
+# **Windows and both Darwin triples added 2026-08-26, ADR-010 §9.** They are
+# not places Rivet ships; they are places a Rivet HOST TOOL runs. `ADR-034`
+# §2.2 puts `rivet-fleet` on the maintainer's own machines and §11.2 puts it
+# in THIS workspace, so its dependencies are this repository's dependencies —
+# and `ratatui`'s `crossterm` backend resolves a different tree on each. With
+# two Linux triples declared, `cargo deny check licenses` would have reported
+# success while never looking at those crates at all: a gate that passes
+# because it did not inspect, which is AGENTS.md §3's failure relocated into
+# the tooling.
+#
+# ADR-010 §9 also rules there is **ONE allow-list**, not a looser one for host
+# tools. The obligations genuinely differ — §2's aggregation-versus-linking
+# rule is about what is in the image, and a tool the maintainer `cargo
+# install`s is not distributed by him at all — and it is refused anyway,
+# because two licence policies in one repository get confused exactly once,
+# expensively. If a host-only crate ever needs a licence the image must not
+# carry, that is the moment to split, with a named crate to point at.
+targets = [
+    { triple = "aarch64-unknown-linux-musl" },
+    { triple = "x86_64-unknown-linux-gnu" },
+    { triple = "x86_64-pc-windows-msvc" },
+    { triple = "aarch64-apple-darwin" },
+    { triple = "x86_64-apple-darwin" },
+]
+
+# This section is `cargo deny check advisories`.
+[advisories]
+# RustSec, the standard source. ADR-010 §4.1: "It also covers the
+# advisories database, which matters more once ADR-009 makes reuse the
+# default."
+db-urls = ["https://github.com/rustsec/advisory-db"]
+# A yanked dependency is worth noticing the moment it happens, not at the
+# next audit.
+yanked = "deny"
+# Two dated, accepted exceptions (`.rulings/` R-210 D9, 2026-09-25) — both
+# "unmaintained", neither a vulnerability, and each with no maintained
+# drop-in today:
+#
+# * `rustls-pemfile` only reads PEM certificate files. Moving to
+#   `rustls-pki-types`' own PEM reading was offered and not chosen for now.
+# * `ttf-parser` parses only the fonts this repository bundles into the
+#   image itself — trusted bytes, not attacker-controlled input.
+#
+# Revisit each when a maintained successor exists; do not extend the pair
+# without the maintainer's own ruling, per `AGENTS.md` §1.1.
+ignore = [
+    { id = "RUSTSEC-2025-0134", reason = "unmaintained; no maintained drop-in — rustls-pemfile reads PEM certificate files. Accepted 2026-09-25." },
+    { id = "RUSTSEC-2026-0192", reason = "unmaintained; no maintained drop-in — ttf-parser parses only this image's own bundled fonts, trusted bytes. Accepted 2026-09-25." },
+]
+
+# This section is `cargo deny check licenses` — the gate itself.
+[licenses]
+version = 2
+# Exactly what `cargo deny check licenses` finds live in the tree today:
+# MIT and Apache-2.0, ADR-010 §4's "overwhelmingly" case. (Cargo.lock at the
+# time of writing still lists memchr, unicode-ident, syn, quote, proc-macro2
+# and serde_core/serde_derive — leftovers from before rivet-config's
+# `toml_edit` dependency was pinned to `default-features = false, features
+# = ["parse"]`, deliberately without serde; see that crate's Cargo.toml.
+# `cargo deny` resolves live from Cargo.toml, not the stale lock entries, so
+# they correctly do not appear here — a `cargo update` / clean build will
+# prune them from Cargo.lock.)
+#
+# ADR-010 §4.1: "starting clean is trivial and auditing several hundred
+# crates afterwards is not" — so this list is deliberately not padded with
+# licences no live dependency actually uses (cargo-deny warns on those as
+# "unmatched license allowance", which is noise pretending to be safety
+# margin). When a new dependency needs one, `cargo deny check` names it
+# exactly, and it gets added here in the commit that adds the dependency.
+# The common ones to expect from the wider Rust ecosystem: Unlicense,
+# Unicode-3.0 (an AND term on unicode-ident — every term of an AND
+# expression must be allowed, not just one, or the crate is rejected
+# outright), BSD-2-Clause, BSD-3-Clause, ISC, Zlib, CC0-1.0, 0BSD,
+# "Apache-2.0 WITH LLVM-exception".
+#
+# Deliberately never on this list without the maintainer's own ruling
+# (AGENTS.md §1 — this changes the shape of what the project can ship):
+# anything GPL, LGPL or AGPL — ADR-010 §2.1's entire point. ~~and MPL-2.0,
+# whose file-level weak copyleft interacts awkwardly with static linking.~~
+#
+# MPL-2.0 RULED IN 2026-08-23 by the maintainer, and the sentence above was
+# wrong about the reason. MPL-2.0 is FILE-level copyleft: the obligation
+# attaches to the individual MPL source files, not to whatever they are
+# linked into, and §3.3 explicitly contemplates a "Larger Work" under other
+# terms. Static linking does not infect — that is the design difference from
+# LGPL, which IS linkage-scoped. The live obligation is source availability
+# on distribution, for files we do not modify and which are public crates,
+# and ADR-010 §6 already plans the machinery for a larger version of the
+# same duty. Full reasoning in ADR-010 §7.
+#
+# The rest of this list was added in the same ruling, from the nushell
+# feasibility survey of 2026-08-23 (ADR-005 §5.6): `cargo deny check
+# licenses` against nu 0.115.1's 572-crate closure rejected 47 crates
+# carrying 15 licence expressions. Thirteen were bookkeeping and are below.
+# Note the comment above predicted eight of them and missed four —
+# MPL-2.0, CDLA-Permissive-2.0, CC-PDDC and BSL-1.0.
+#
+# These are permissive and are allowed globally rather than scoped to one
+# dependency, because cargo-deny has no per-crate allow and because the
+# check exists to catch GPL/LGPL/AGPL and surprises, not to relitigate BSD.
+# **2026-08-23, `blake3` and `sha2` — the first new dependencies since the ruling
+# above, and NOTHING had to be added.** Recorded because a licence check that
+# passes silently teaches nobody what it checked. `cargo deny check licenses`
+# reported `licenses ok` against these expressions:
+#
+#   blake3            CC0-1.0 OR Apache-2.0 OR Apache-2.0 WITH LLVM-exception
+#   constant_time_eq  CC0-1.0 OR MIT-0 OR Apache-2.0
+#   sha2, digest, block-buffer, crypto-common, cpufeatures, typenum,
+#   arrayvec, cfg-if, version_check, cc, shlex, find-msvc-tools
+#                     MIT OR Apache-2.0
+#   generic-array     MIT
+#
+# Two terms appear here that are NOT on this list — `Apache-2.0 WITH
+# LLVM-exception` and `MIT-0`. Both are alternatives in an **OR**, so the crate is
+# accepted on a term that is allowed, and cargo-deny is right not to demand them.
+# That is the mirror image of the `Unicode-3.0` note below: every term of an AND
+# must be allowed, any term of an OR will do. Adding either "to be safe" would
+# widen what Rivet may link for no gain.
+#
+# `CC0-1.0` was on this list unmatched until today and is now matched, by blake3
+# and constant_time_eq. Ten entries are still unmatched, which is what the
+# nushell survey bought and is left alone deliberately.
+allow = [
+    "MIT",
+    "Apache-2.0",
+    # Ruled 2026-08-23 — see above. Two crates in nushell's tree:
+    # option-ext (via dirs, which is how nushell finds $HOME) and
+    # nucleo-matcher (reedline's completer). Feature-trimming does not
+    # remove either; they are in nushell's core, not its options.
+    "MPL-2.0",
+    # The ICU family and unicode-ident. Appears as an AND term, and every
+    # term of an AND must be allowed or the crate is rejected outright.
+    "Unicode-3.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "CC0-1.0",
+    "0BSD",
+    "BSL-1.0",
+    # webpki-roots. A data licence rather than a code one.
+    "CDLA-Permissive-2.0",
+    # pwd. Public-domain dedication with a fallback.
+    "CC-PDDC",
+    # **`winx`, and it is a WINDOWS-ONLY crate — added 2026-09-06, the day
+    # `cargo deny` was first run against this tree** (`PLAN.md` §155).
+    #
+    # `Apache-2.0 WITH LLVM-exception` is its ONLY term, so `Apache-2.0` above
+    # does not cover it: an exception makes a distinct SPDX expression and
+    # cargo-deny compares expressions, not families. It arrives through the
+    # vendored SMB server and is compiled only for `x86_64-pc-windows-*` —
+    # **nothing on a card links it**, which is why this is a licence allowance
+    # rather than an `ADR-010` §2.1 question.
+    #
+    # The exception is a PERMISSION and never an obligation: it removes the
+    # requirement to carry the Apache patent/attribution terms into a binary
+    # that links LLVM runtime code. Allowing it grants this project nothing it
+    # must then do.
+    "Apache-2.0 WITH LLVM-exception",
+]
+confidence-threshold = 0.8
+
+[licenses.private]
+# Rivet's own crates (rivet-core, rivet-config, cmd/rivet-initd, ...)
+# are not published and are not exempt from this check just for being
+# workspace members — ADR-010 §6.4 commits them to MIT OR Apache-2.0
+# specifically so the public mirror is frictionless to depend on, and that
+# claim is worth the same enforcement as everything else in the tree.
+ignore = false
+
+# This section is `cargo deny check bans`. Not what ADR-010 §4/§4.1 asks
+# for, but left at sensible defaults rather than omitted, since an unbanned
+# duplicate dependency tree is exactly the kind of thing that goes unnoticed
+# without a check for it.
+#
+# wildcards stays at cargo-deny's own default ("allow"), not "deny": every
+# internal crate here is a path dependency with no version pinned
+# (`rivet-core = { path = "../../rivet-core" }`, ADR-014's workspace),
+# which is exactly correct for same-workspace crates and is not the risk
+# `wildcards = "deny"` exists to catch — that lint is about a *published*
+# crate depending on another with `version = "*"`. Denying it here just
+# fails the check on every normal internal dependency.
+[bans]
+multiple-versions = "warn"
+wildcards = "allow"
+
+# This section is `cargo deny check sources` — every dependency comes from
+# crates.io or this repository itself; anything else (a random git fork) is
+# refused rather than silently trusted.
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+
+# **One git source, named rather than permitted in general.** `unknown-git`
+# stays `deny`; this is the allow-list it consults.
+#
+# `ADR-034` §10.3 rules `rivet-fleet` an Ignition application, and Ignition is
+# this maintainer's own library, consumed by tag from its own repository exactly
+# as Athena and Tachyon consume it. It is not published to crates.io and there
+# is no third party in the path.
+#
+# **It reaches no card.** `tools/card/build.sh` selects binaries by `--bin` and
+# `rivet-fleet` is not among them, so nothing in this subtree is in the image's
+# dependency graph — which is the distinction `ADR-034` §11.2 made the README's
+# crate count carry a denominator for.
+allow-git = ["https://github.com/caladil/Ignition"]

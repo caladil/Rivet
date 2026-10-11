@@ -1,0 +1,39 @@
+# A deliberately tiny application, used to prove the application path end to end
+# before anything harder is attempted on it.
+#
+# `[workspace]` is EMPTY and present on purpose: without it Cargo walks up,
+# finds the repository's workspace, and refuses a crate that is not a member.
+# An example that had to be added to `members` would change the crate count
+# `tools/docs/claims.py` derives and `AGENTS.md` §10 tracks, for a program that
+# is not part of Rivet.
+[workspace]
+
+[package]
+name = "hello-rivet"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[package.metadata.rivet]
+kind    = "daemon"
+restart = "always"
+ready   = "none"
+# **A `title`, and this probe is where it is proved.** `PLAN.md` §144.2 found
+# that `title` was writable by every build and readable by none: it was in
+# `KEYS` and in `Manifest::render`, and in no arm of `Manifest::parse`, so a
+# payload carrying one was refused by the board AND by `cargo rivet inspect`.
+#
+# The fix shipped in image `0.1.74` (`PLAN.md` §151), and §144.2's instruction
+# was to put a title back *"when an image carrying the fix is on the board"*.
+# **It goes here rather than on `aura-controller`** — a disposable probe is the
+# right thing to point at a parser nobody has exercised yet, and swapping the
+# live dashboard's controller to prove a string would be a poor trade.
+#
+# The value has a SPACE in it deliberately. §144.2's second half was that
+# `scalar` applied the token rule — `0x21..=0x7e`, no space — so `Aura
+# Controller` was a value the file could write and could not read back. A
+# single-word title would pass without testing that at all.
+title   = "Hello Rivet"
+
+[dependencies]

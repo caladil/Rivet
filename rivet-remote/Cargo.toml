@@ -1,0 +1,60 @@
+[package]
+name = "rivetos-remote"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Reaching a running Rivet from a host: compose an artifact's name (ADR-027 §7), push a payload over ADR-035's control plane, check the bytes arrived, install it, and edit the configuration document. The deploy sequence is `cargo rivet deploy`'s; `rivet-fleet` shares the control-plane client and the document edit (ADR-034 §11.5)."
+
+[lib]
+name = "rivet_remote"
+path = "src/lib.rs"
+
+# A HOST library. Nothing here ships on a card — it is the *other* end of the
+# wire, and every function in it runs on the operator's workstation.
+[dependencies]
+# The vocabulary both ends share: `package::kind::Kind` for what an artifact
+# is, and `service::ServiceName` for what a document may name. The alternative
+# is this crate deciding those, which is the second authority `ADR-011` refuses.
+rivetos-core = { path = "../rivet-core" }
+
+# BLAKE3, for the local half of the transfer check. **The same implementation
+# the board uses for the remote half** — that is the whole reason the check is
+# worth making, because it compares one algorithm's output against itself
+# rather than two implementations that might disagree.
+rivetos-crypto = { path = "../rivet-crypto" }
+
+# ADR-035 §7.2's pinned TLS, for `tls.rs` -- which is the only transport this
+# crate has, and the only reason rustls is in the graph at all.
+rivetos-tls = { path = "../rivet-tls" }
+rustls = { version = "0.23", default-features = false, features = ["std", "ring"] }
+
+# **How a `.local` host becomes an address to dial.** `tls.rs` resolved every
+# name through the OS, which cannot answer for a DHCP member whose only handle
+# is `<name>.local` — so `cargo rivet run <member>` failed the same way
+# `rivet-fleetd` did. The lookup lives in one crate both clients link so the two
+# cannot disagree (`ADR-011`); a name that is not `.local` still goes to the OS.
+rivetos-mdns = { path = "../rivet-mdns" }
+
+# **The control plane's default PORT, and nowhere else to read it from.**
+# `endpoint.rs` refuses a `--host` with no port and names 7777 in the refusal;
+# writing the number here would make a fourth spelling of a fact a cold agent
+# already found in three places on 2026-08-29 (`PLAN.md` §92). `ADR-011`: one
+# fact, one owner — `rivet-config` owns `[control-plane]`. It arrived with
+# `endpoint.rs` itself, which was `cmd/cargo-rivet`'s until `ADR-034` §11.5.1
+# gave the three flags a second binary.
+rivetos-config = { path = "../rivet-config" }
+
+[dev-dependencies]
+# **So `Tls::handshake` can be tested at all.** It is the one method here whose
+# whole answer is *did a real TLS handshake complete against a peer holding a
+# key we pin*, and that cannot be faked at a seam: the pin check happens inside
+# rustls' certificate verifier, so a test needs a real identity and a real
+# listener or it is testing nothing. `rivet-tls` takes rcgen as a dev
+# dependency for exactly this reason and its comment applies unchanged —
+# minting is a HOST concern and never happens on a card.
+rcgen = { version = "0.14", default-features = false, features = ["ring"] }
+
+[lints]
+workspace = true

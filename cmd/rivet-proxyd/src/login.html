@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign in</title>
+<style>
+:root{color-scheme:light dark;--bg:#fbfbfa;--fg:#1c1c1a;--dim:#6a6a64;--line:#e2e2dd;--card:#fff;--accent:#8a5a2b;--bad:#b3261e}
+@media(prefers-color-scheme:dark){:root{--bg:#16161a;--fg:#e8e8e4;--dim:#95958d;--line:#2b2b30;--card:#1e1e23;--accent:#d29a5e;--bad:#f2b8b5}}
+*{box-sizing:border-box}
+body{margin:0;padding:2.5rem 1rem;background:var(--bg);color:var(--fg);font:16px/1.55 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+main{max-width:26rem;margin:0 auto;padding:1.5rem;border:1px solid var(--line);border-radius:10px;background:var(--card)}
+h1{font-size:1.15rem;margin:0 0 1rem}
+p{margin:0 0 1rem;color:var(--dim);font-size:.9rem}
+button{font:inherit;width:100%;padding:.7rem 1rem;border:0;border-radius:8px;background:var(--accent);color:#fff;cursor:pointer}
+button:disabled{opacity:.6;cursor:default}
+#said{min-height:1.5rem;margin:1rem 0 0;font-size:.9rem}
+.bad{color:var(--bad)}
+a{color:var(--accent)}
+</style>
+</head>
+<body>
+<main>
+<h1>Sign in to <span id="host"></span></h1>
+<p>With a passkey enrolled on this machine. A browser that presents the fleet's client certificate needs no sign-in.</p>
+<button id="go">Sign in with a passkey</button>
+<div id="said"></div>
+<p style="margin-top:1rem">No passkey yet? <a href="/sign-in/enroll">Enroll one</a>.</p>
+</main>
+<script>
+"use strict";
+document.getElementById("host").textContent = location.hostname;
+const said = document.getElementById("said");
+function say(text, bad) { said.textContent = text; said.className = bad ? "bad" : ""; }
+function enc(buf) {
+  let s = ""; for (const b of new Uint8Array(buf)) s += String.fromCharCode(b);
+  return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+function dec(text) {
+  const s = atob(text.replace(/-/g, "+").replace(/_/g, "/"));
+  return Uint8Array.from(s, c => c.charCodeAt(0));
+}
+async function post(url, body) {
+  const r = await fetch(url, { method: "POST", headers: { "content-type": "application/json" },
+                               body: JSON.stringify(body || {}), credentials: "same-origin" });
+  const text = await r.text();
+  const data = text ? JSON.parse(text) : {};
+  if (!r.ok) throw new Error(data.error || ("HTTP " + r.status));
+  return data;
+}
+function next() {
+  const n = new URLSearchParams(location.search).get("next");
+  return n && n.startsWith("/") && !n.startsWith("//") && !n.startsWith("/\\") ? n : "/";
+}
+document.getElementById("go").onclick = async () => {
+  const button = document.getElementById("go");
+  button.disabled = true;
+  try {
+    say("Asking this machine for a challenge…");
+    const o = await post("/.rivet/passkey/login/options");
+    say("Waiting for your passkey…");
+    const c = await navigator.credentials.get({ publicKey: {
+      challenge: dec(o.challenge), rpId: o.rpId, timeout: o.timeout,
+      userVerification: o.userVerification,
+      allowCredentials: o.allowCredentials.map(id => ({ type: "public-key", id: dec(id) })) } });
+    await post("/.rivet/passkey/login", { id: enc(c.rawId),
+      clientDataJSON: enc(c.response.clientDataJSON),
+      authenticatorData: enc(c.response.authenticatorData),
+      signature: enc(c.response.signature) });
+    say("Signed in.");
+    location.href = next();
+  } catch (e) {
+    say(e.message || String(e), true);
+  } finally {
+    button.disabled = false;
+  }
+};
+</script>
+</body>
+</html>

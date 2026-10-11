@@ -1,0 +1,300 @@
+# **Aura's controller, in Rust.** The direct port of `cmd/aura-controller` from
+# Aura's own Go repository, as a first-class Rivet application.
+#
+# `aura-renderer` is the other half and is already here. Read the two together:
+# the controller holds the facts and the renderer draws them, and the wire
+# between them is `Aura/docs/ipc-schema.md`, which is normative for both.
+#
+# # It is a PORT, and the distinction is not pedantry
+#
+# Ruled by the maintainer 2026-09-02, after a rewrite of the renderer cost a
+# day: the request was for a direct port (.rulings/ R-351). So the Go
+# program's structure, its defaults, its migrations and its log lines are
+# reproduced here, and every place this differs differs because **the platform
+# hands over what the Go program went and took**:
+#
+# | `cmd/aura-controller` takes | this program is handed |
+# | :--- | :--- |
+# | `net.Listen("unix", "/run/aura/kiosk.sock")` | fd 3, bound and listening, named `kiosk.sock` |
+# | `$HOME/.config/aura/config.json` | `RIVET_APP_DATA/config.json` |
+# | `http.Server{Addr: ":8080"}` — **its own socket** | a handed `tcp:8080`, which is what makes it routable |
+# | `time.LoadLocation(cfg.Timezone)` with an embedded IANA database | `localtime_r(3)` and the machine's `timezone` key |
+# | `log.SetOutput(controller.log)` | the journal |
+#
+# The fourth row is the one that changes a behaviour rather than a mechanism,
+# and §"The timezone" in `src/clock.rs` is where it is argued.
+#
+# # Its own workspace, like every application in `examples/`
+#
+# `cargo rivet package` builds it for a board and the root workspace is the
+# operating system's.
+[workspace]
+
+[package]
+name = "aura-controller"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+# **The manifest IS the permission request** — `ADR-015` §3.3. Keys must appear
+# in `rivet_core::package::application::KEYS` order or the machine refuses the
+# manifest as out-of-order, which reads like a parse error and is not one.
+[package.metadata.rivet]
+# A long-running process the supervisor keeps up.
+kind    = "daemon"
+# Restart if it fails, not if it was stopped — `ADR-017` §4.1.
+restart = "always"
+# **The whole of the readiness protocol.** The supervisor opened the portal's
+# socket, so it can see this service answering without being told — there is no
+# `NOTIFY_SOCKET` to write to and nothing for this program to say.
+ready   = "listening"
+# **`egress`, and it is the same honesty fix the Go manifest carries.** This
+# program fetches the National Weather Service every twenty minutes, geocodes a
+# zip code once, and polls TempMon. `none` would be a manifest saying it reaches
+# nothing while it sat on the internet.
+#
+# **It also covers the addon**, and that is worth stating rather than leaving to
+# be discovered: a loaded addon runs IN this process and inherits this line. The
+# reading source declared below reaches its relay under this grant and could not
+# be given a narrower one — which is `rivet-addon`'s own note on what the
+# boundary cannot do, and the reason an addon is a trust decision rather than a
+# sandbox.
+network = "egress"
+# `/state/app/aura-controller/data`, mode 0700, owned by this application's uid,
+# told to the program as `RIVET_APP_DATA`. **The config lives here and nowhere
+# else**: `/` is read-only and there is no `$HOME`, so the Go defaults
+# (`/etc/aura/`, `$HOME/.config/aura/config.json`) resolve to unwritable paths
+# on a Rivet and the portal would offer forms that silently kept nothing.
+state   = "private"
+# **The portal's socket, and the reason this program has no `bind` call.**
+#
+# `ADR-046` §9.4 named `aura-controller` as the live case of *the platform
+# failing to be a platform*: the Go controller declares `network = "none"` and
+# `listen = []` and then serves HTTP on 8080 by opening its own socket. The
+# consequence is a route that cannot exist and a socket the gate cannot protect
+# — nothing stopped it, and the manifest said it listened on nothing.
+#
+# This line is what closes that. The supervisor opens 8080, hands the descriptor
+# over, and `/aura/` appears in the derived routing table because there is at
+# last a port to route to.
+#
+# Written `tcp:8080` here; it arrives named `tcp-8080`, because `LISTEN_FDNAMES`
+# is colon-separated — which is why `portal::LISTEN_NAME` carries the hyphen.
+#
+# **8080 and not 8081**: this port was always Aura's, and `tempmon-rivet` moved
+# to 8081 in September precisely because the supervisor refused to start it
+# against the socket this program had already taken.
+#
+# **Bound on `127.0.0.1`**, because this application declares a `proxy-path`
+# below (`ADR-046` §7, `.rulings/` R-188): `rivet-proxyd` dials loopback, and
+# nothing off the machine reaches the portal except through the proxy's operator
+# gate. The routed port may not be `:direct`.
+listen  = ["tcp:8080"]
+# **The kiosk socket, opened by Rivet.** `ADR-015` §5.2, §5.3.
+#
+# `provides`, not `listen`, and the difference is the half `listen` cannot
+# express: another application may be granted the socket FILE. `listen` alone
+# leaves it root-owned `0600`, which is why the renderer could not reach the
+# controller no matter what either manifest said.
+#
+# **One consumer per endpoint**, because the grant is a chown and a chown names
+# one uid. The renderer declares `connects = ["aura-controller:kiosk.sock"]`;
+# if a second application declares the same endpoint, both are refused by name
+# and neither is started. The name here and the name there cannot drift apart — they are the
+# same string, and `src/kiosk.rs` looks it up by it.
+provides = ["socket:kiosk.sock"]
+# **Empty, and this program is nevertheless DYNAMIC.** `library` declares the
+# SHARED RIVETS an application depends on by artifact id, and this one depends
+# on none: its closure is `libc.so` and `libgcc_s.so.1`, both in
+# `PUBLIC_LIBRARIES`, so the installer's closure check passes with nothing
+# declared. `examples/probes/addon-probe-host` measured exactly that
+# (`docs/design-candidates/Addon-Call-Boundary-2026-09-19.md` §6).
+#
+# **It became dynamic when it became a host**, on 2026-09-19. A statically
+# linked musl binary carries a `dlopen` that always fails, so the addon below
+# could never be opened from one; `.cargo/config.toml` is where the two flags
+# that produce an interpreter live, and it carries the argument.
+#
+# The addon itself is NOT named here and must not be: `ADR-053` joins a library
+# to an application by CLASS, so `accepts-class` is the whole of the request and
+# `library` is for the explicit closure, which is still empty.
+library = []
+# **It draws nothing.** The renderer is the half that takes a display; this half
+# never opens a device node and is not on the launcher's menu.
+devices = []
+# **No `title`, and its absence is a WORKAROUND rather than a preference.**
+#
+# `title = "Aura Controller"` is what belongs here, and it is what this
+# declared until 2026-09-05, when packaging it found a defect in the platform:
+# `title` was in `rivet_core::package::application::KEYS` — so the ordering
+# check accepted it — and in `Manifest::render`, and in **no arm of
+# `Manifest::parse`**. A payload carrying one was therefore refused by every
+# build as *a key is not one this build defines*, including by the tool that
+# had just written it. `scalar`'s token rule refused the space in it as well.
+#
+# Both halves are fixed in `rivet-core` now, and **the board is not**: it runs
+# the parser inside image `0.1.73`, so a titled payload stays unreadable there
+# until the next image ships. Shipping a system image to deploy an application
+# is backwards, and `ADR-015` §3.2's fallback is exactly this case — an absent
+# title means *call it by its service name*.
+#
+# **Put the line back when an image carrying the fix is on the board.**
+# **Where `rivet-proxyd` mounts this** — `https://<host>/aura/`. Absent would
+# mean NOT proxied; this asks.
+#
+# There is deliberately **no `proxy-auth`**, which means the default:
+# `operator`. This portal writes the schedule, the display configuration and
+# the reading source's own credential, so it is the last surface on the
+# machine that should be reachable without one — and the key only ever relaxes
+# (`ADR-046` §4.3.1), so its absence is the closed reading.
+proxy-path = "aura"
+# **`ADR-051` §12's backup surface.** TempMon and Reliquary have declared
+# theirs since the contract was built; Aura had not, which was an omission
+# rather than a decision — it was ported before the keys existed.
+#
+# **`Artifact` and not `Feed`**: one fetch returns the whole thing, because the
+# whole thing is one JSON document. Aura holds no history — there is no series
+# of readings here, only what this machine IS — so a cursor would be machinery
+# over a single file.
+#
+# **`json`, and it is the document this program already writes.**
+# `crate::config::save` renders with `serde_json::to_string_pretty` into
+# `config.json`; the backup route hands back the same shape, so a backup is
+# readable by a person and restorable by this build without a converter in
+# between.
+backup-path = "backup"
+backup-format = "json"
+# **What restoring it is allowed to do** — `restore-path`, relative to
+# `proxy-path` as the other two are. Absent would mean *this application
+# accepts no restore*, which is what every manifest emitted before the key
+# existed says and what Aura said until now.
+#
+# The route replaces the configuration whole or not at all (R-186 D2):
+# `config::save` writes a temporary and renames, so an interrupted restore
+# leaves the previous file untouched, and a body that does not parse is refused
+# before anything is written.
+restore-path = "restore"
+# **The reading sources are LOADED, not compiled in** — `ADR-053`, and
+# `.rulings/` R-197 D1 is why. A reading source's client lives in its own
+# repository, because Rivet is public and a relay credential's client is not a
+# thing that goes with it.
+#
+# The supervisor puts every installed library whose `provides-class` is in this
+# list onto this program's `LD_LIBRARY_PATH` at each discovery pass, and grants
+# the same directories in its Landlock ruleset. `src/addon.rs` then asks the
+# loader for a NAME — `libaura-reading-source.so.1` — and never for a path.
+#
+# **Nothing here names an artifact**, which is the whole of the class idea: a
+# reading addon can be rebuilt, resigned and reinstalled without this manifest
+# changing, and a machine with no addon of this class installed simply draws no
+# corner card and says so once in its journal.
+#
+# **A class names a ROLE, one class per role** — `.rulings/` R-200. The corner
+# card's value and the room's temperature are both *a value, a unit, an
+# instant*, so one class covering the shape would have left this program unable
+# to tell which addon belongs on the corner card and which is a column of the
+# weather panel. **The role is named for the card, never for what it shows**
+# (`.rulings/` R-375 D1): `aura-reading-source` is the corner reading card,
+# whatever its source measures. The list here is a list because this
+# application will accept more than one role, not more than one source of the
+# same one.
+#
+# It sits between `cpu` and `restore-path` in `rivet_core::package::application::KEYS`,
+# so it is written here after `proxy-path` and before `material`.
+# **Two roles, and the list is the same one `crate::addon::role` names.** The
+# supervisor joins an installed library to this application when its
+# `provides-class` appears here; a class this does not list is a library that
+# is installed, present, and never placed on this program's library path.
+#
+# `aura-indoor-source` joined the list on 2026-09-20, when `src/tempmon.rs`
+# left this repository for the TempMon project (R-197 D2). An absent class is
+# SILENT by design — `ADR-053` joins by class and says nothing when none
+# matches — so a machine with no indoor source installed simply draws no
+# temperature, exactly as one with no reading source draws no corner card.
+#
+# `aura-background` joined on 2026-09-20 (T7) and is the odd one out: the other
+# two name a source of readings this program polls, and this one names the pack
+# `aura-renderer` draws. This program opens it only to read the catalogue its
+# two pickers are built from, and never calls it again. Two hosts, one object,
+# neither knowing about the other.
+accepts-class = ["aura-reading-source", "aura-indoor-source", "aura-background"]
+# **The three TLS files this program reads out of its own data directory** —
+# `ADR-055` §3.2, and it is the declaration that was missing on the evening
+# three applications crash-looped for want of them.
+#
+# `fleet-tls` is a KIND and not a file list: `tls-cert`, `tls-key` and
+# `tls-root`, which `src/portal.rs` serves with and `src/tempmon.rs` presents as
+# a CLIENT certificate when it calls another application (`ADR-046` §4.2). The
+# second half is why this is declared rather than inferred from `proxy-path` —
+# a program with no route can need the same pair.
+#
+# **Nothing in the payload carries them and nothing ever will**: they are about
+# one machine and one of them is a private key (`ADR-049` §1.1). The operator
+# mints and installs them, `.rulings/` R-194, and what this line buys is that
+# `cargo rivet deploy` says so BEFORE it sends, naming the two commands, instead
+# of the machine finding out at start-up.
+material = ["fleet-tls"]
+
+[dependencies]
+# **Everything the platform hands over.** `app`, `listen` and `journal` are on
+# the default path; `serve` is `ADR-040`'s opt-in half — the TLS configuration
+# and the bounded HTTP head reader the portal is built on.
+rivetos-sdk = { path = "../../../rivet-sdk", features = ["serve"] }
+# **The TLS session itself**, which `rivet_sdk::serve::Tls` hands a
+# `rustls::ServerConfig` for and deliberately does not wrap: a handshake and a
+# stream are the caller's to drive, and an SDK that owned the accept loop could
+# not be used by a program that already has one. Version-pinned to the SDK's
+# through the lock file, because a `ServerConfig` from one `rustls` cannot
+# configure a session from another.
+rustls = "0.23"
+# The wire is JSON — `Aura/docs/ipc-schema.md` — and so is the config file.
+serde = { version = "1", features = ["derive"] }
+# `raw_value` because the relay's envelope must be read in two steps: the status
+# decides what shape `data` is, and parsing it before checking the status would
+# be reading a refusal as if it were a reading.
+serde_json = { version = "1", features = ["raw_value"] }
+# **For `localtime_r(3)` and nothing else**, exactly as in the renderer. The
+# board's zone comes from the `timezone` document key, which the supervisor
+# projects to `/etc/localtime` (`ADR-021` §9); musl already contains the tzfile
+# reader that turns that file into an offset.
+libc = "0.2"
+# **The HTTP client, for the three things this program fetches**: the National
+# Weather Service, a zip-code geocode and TempMon. It was four until the reading
+# source moved out on 2026-09-19; the addon carries its own copy of this crate
+# inside its own object, which is the price of a boundary that passes bytes
+# rather than types. `net.Listen` is the platform's; `http.Get` is not, and an
+# application on `network = "egress"` is expected to reach out with something.
+#
+# **`ureq` and not `reqwest`**, for the reason the rest of this crate is
+# threads rather than tasks: it is blocking, so a poller is a thread that
+# sleeps, and nothing here needs an async runtime to fetch four JSON documents
+# an hour. It carries `rustls` and no OpenSSL, which is what keeps this a
+# static musl binary with `library = []`.
+#
+# `ADR-036` §6.3 is the licence for naming an ordinary crate at all: an
+# application is a foreign program, and *"can I use the crates I use
+# everywhere else"* is the question `examples/` exists to answer with a yes.
+#
+# **It carries a client certificate**, which is `ADR-046` §4.2's other half:
+# a backend that calls another application presents the machine's certificate
+# the same way it serves one. `ureq`'s `client_cert` and `root_certs` are what
+# make that a configuration rather than a fork, and its pluggable resolver is
+# what lets the name being VERIFIED differ from the address being CONNECTED to
+# — which it must, because the machine's certificate names `rivet-01.local` and
+# a Rivet cannot resolve that. `src/tempmon.rs` argues all of it.
+ureq = { version = "3", features = ["json"] }
+# **The half of the addon boundary a HOST needs** — `dlopen` by class, the
+# version handshake read through its own symbol before a byte is parsed, the
+# call, and the trial note that makes a memory-unsafe addon cost one restart
+# rather than a crash loop.
+#
+# **This is a protocol dependency and not a source's.** Nothing about any
+# relay is reachable from here: the addon is opened by class, describes itself,
+# and answers polls with `Reading` and `Status`, which is why the crate that
+# used to hash a relay's user id (`sha2`) left with the client.
+rivetos-addon = { path = "../../../rivet-addon" }
+
+[profile.release]
+opt-level = 3
+lto = true

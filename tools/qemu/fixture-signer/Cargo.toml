@@ -1,0 +1,30 @@
+[package]
+name = "rivet-fixture-signer"
+version = "0.0.1"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+authors = ["Joel Lindell"]
+publish = false
+description = "Signs a stand-in application for the QEMU harness, and writes the trust store that trusts it."
+
+# Its own workspace root, deliberately, on `tools/qemu/testapp`'s terms exactly:
+# it is not part of the system (`ADR-014` §2 lists what is), it is a fixture the
+# emulator harness needs, and making it a member would put it in
+# `cargo build --workspace` and in the crate count `AGENTS.md` §10 keeps
+# correcting.
+[workspace]
+
+# **The real writer and the real signer, not a second implementation of
+# either.** `ADR-011`: a harness that composed a trust store or a package header
+# by hand would be a second producer of a security-relevant format, and
+# `tools/qemu/run.sh`'s own `--trust` help already refuses to be one. This
+# reaches for the same `rivet_core::package::write::Builder` and
+# `rivet_crypto::Ed25519Signer` that `cargo rivet package` and `cmd/rivet-image`
+# use, so a change to either format fails here rather than producing a fixture
+# that no longer resembles what a card carries.
+[dependencies]
+rivetos-core = { path = "../../../rivet-core" }
+rivetos-crypto = { path = "../../../rivet-crypto" }
+
+[profile.release]
+opt-level = 1

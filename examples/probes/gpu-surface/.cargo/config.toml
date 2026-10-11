@@ -1,0 +1,31 @@
+# **The link recipe, in the crate rather than in an environment variable** —
+# `examples/probes/gpu-flip/.cargo/config.toml` is where the argument for each
+# flag is written down, and this is the same recipe minus one library.
+#
+# **Three, where `gpu-flip` names four.** `libdrm` is the one that is gone, and
+# its absence is the whole difference between the two probes: `gpu-flip` had a
+# DRM lease and page-flipped its own buffer, so it needed mode-setting. This
+# program has a SURFACE. It allocates on a render node, exports a descriptor,
+# and the compositor does everything that touches KMS. An application that
+# linked `libdrm` here would be carrying the library for the thing `ADR-058`
+# took away from it.
+#
+# **The paths are the build container's.** `ADR-026` §7 makes the container the
+# Linux side of this project and `tools/container/exec.sh` mounts the Buildroot
+# tree at `/br`. This crate cannot be built anywhere else.
+[target.aarch64-unknown-linux-musl]
+linker = "/br/host/bin/aarch64-linux-gcc"
+rustflags = [
+    # There is no static libEGL, libGLESv2 or libgbm.
+    "-C", "target-feature=-crt-static",
+    # Let GCC drive the link: rust-lld cannot find libgcc_s or libgcc, which
+    # live under lib/gcc/<tuple>/<version>/ — a path the cross GCC computes.
+    "-C", "link-self-contained=no",
+    # Where Buildroot stages the link-time libraries. The RUNTIME copies are in
+    # /lib on the card, put there by tools/card/build.sh's collect_libraries —
+    # and, for GBM's dlopen'd backend, by collect_gbm_backends beside it.
+    "-L", "/br/staging/usr/lib",
+    "-l", "EGL",
+    "-l", "GLESv2",
+    "-l", "gbm",
+]

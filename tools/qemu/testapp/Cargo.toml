@@ -1,0 +1,23 @@
+[package]
+name = "rivet-testapp"
+version = "0.0.1"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+authors = ["Joel Lindell"]
+publish = false
+description = "A stand-in for an installed Rivet application, for the QEMU harness."
+
+# Its own workspace root, deliberately. It is NOT a member of Rivet's
+# workspace (`ADR-014` §2 lists what is), because it is not part of the system:
+# it is a fixture the emulator harness installs so that `ADR-017` §4's
+# application-service path has something to define a service from. Making it a
+# member would put a test fixture in `cargo build --workspace` and in the crate
+# count `AGENTS.md` §10 keeps correcting.
+[workspace]
+
+[dependencies]
+
+[profile.release]
+panic = "abort"
+opt-level = "z"
+strip = true

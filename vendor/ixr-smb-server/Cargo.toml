@@ -1,0 +1,131 @@
+# VENDORED, AND OWNED BY THIS PROJECT. See VENDORING.md beside this file for
+# the provenance, the hunks carried on top of 0.5.1, and the ruling that put it
+# here.
+#
+# The body below is crates.io's normalised form of upstream's manifest, kept
+# rather than rewritten so a diff against 0.5.1 shows only what this project
+# changed. `Cargo.toml.orig` is upstream's own file, inert — cargo reads this
+# one.
+
+# **Its own workspace, deliberately.** A path dependency inside this repository
+# would otherwise be pulled into the root workspace as a member, and inherit the
+# workspace lints Rivet's own crates are held to. Foreign code held to rules it
+# was never written against produces a wall of warnings that says nothing about
+# whether it is correct, and would push `tools/lint-baseline` up by hundreds —
+# which is how a ratchet stops meaning anything.
+#
+# `tools/test-all.sh` walks nested workspaces, so THIS CRATE'S OWN TESTS RUN on
+# every full pass. That is the half that matters: owning a fork means running
+# its suite, not merely holding its source.
+[workspace]
+
+[package]
+edition = "2024"
+rust-version = "1.95"
+name = "ixr-smb-server"
+version = "0.5.1"
+build = false
+autolib = false
+autobins = false
+autoexamples = false
+autotests = false
+autobenches = false
+description = "Fork of smb-server with fixes for internxt-cli-rust"
+readme = "README.md"
+license = "MIT"
+repository = "https://github.com/Bebbssos/rust-smb-server"
+resolver = "2"
+
+[features]
+default = ["localfs"]
+localfs = ["dep:cap-std"]
+
+[lib]
+name = "smb_server"
+path = "src/lib.rs"
+
+[[test]]
+name = "integration_localfs"
+path = "tests/integration_localfs.rs"
+required-features = ["localfs"]
+
+[[test]]
+name = "integration_localfs_write"
+path = "tests/integration_localfs_write.rs"
+required-features = ["localfs"]
+
+[[test]]
+name = "integration_negotiate"
+path = "tests/integration_negotiate.rs"
+required-features = ["localfs"]
+
+[dependencies.aes]
+version = "0.8"
+
+[dependencies.async-trait]
+version = "0.1"
+
+[dependencies.binrw]
+version = "0.15"
+
+[dependencies.bytes]
+version = "1.7"
+
+[dependencies.cap-std]
+version = "3"
+optional = true
+
+[dependencies.cmac]
+version = "0.7"
+
+[dependencies.getrandom]
+version = "0.4"
+
+[dependencies.hmac]
+version = "0.12"
+
+[dependencies.md-5]
+version = "0.10"
+
+[dependencies.md4]
+version = "0.10"
+
+[dependencies.rc4]
+version = "0.2"
+
+[dependencies.sha2]
+version = "0.10"
+
+[dependencies.thiserror]
+version = "1"
+
+[dependencies.tokio]
+version = "1.40"
+features = ["full"]
+
+[dependencies.tracing]
+version = "0.1"
+
+[dependencies.uuid]
+version = "1.10"
+features = ["v4"]
+
+[dev-dependencies.hex]
+version = "0.4"
+
+[dev-dependencies.tempfile]
+version = "3"
+
+[dev-dependencies.tokio]
+version = "1.40"
+features = ["full"]
+
+[dev-dependencies.tracing-subscriber]
+version = "0.3"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

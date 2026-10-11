@@ -1,0 +1,66 @@
+[package]
+name = "rivetos-mcpd"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "The MCP control plane — ADR-035, PLAN.md §71."
+
+# **The package is `rivetos-mcpd` and the binary is `rivet-mcpd`.** ADR-033 §4.
+[[bin]]
+name = "rivet-mcpd"
+path = "src/main.rs"
+
+[dependencies]
+# **Where the MCP program lives, and nothing else.** This crate does not speak
+# JSON-RPC, does not know what a tool is, and never will — see main.rs. It reads
+# one constant out of rivet-core so that the program it spawns is named in one
+# place (ADR-011).
+rivetos-core = { path = "../../rivet-core" }
+
+# The [control-plane] table. ADR-035 §7.2's address moved out of a build
+# constant and into the document the day TLS made a routable bind legal.
+rivetos-config = { path = "../../rivet-config" }
+
+# The digest ADR-035 §3.2 puts on a bulk transfer. Streaming, because the
+# largest payload is 683 MB and the board has 926 MB of RAM.
+rivetos-crypto = { path = "../../rivet-crypto" }
+
+# **The trust model, and NOT a second copy of it.** Every decision about what a
+# certificate means lives in rivetos-tls; this crate asks it for a ServerConfig
+# and never looks inside one. ADR-035 §7.2, ADR-025 §2.
+rivetos-tls = { path = "../../rivet-tls" }
+
+# Only for the types on the boundary -- ServerConfig, ServerConnection. No
+# verification decision is taken here.
+rustls = { version = "0.23", default-features = false, features = ["std", "ring"] }
+
+# **A fleet server's manifest, read for its repository store** (`.rulings/`
+# R-184 D1). The version and features `rivet-config` already links into this
+# binary, so this adds a direct edge and no new code.
+toml_edit = { version = "0.25.13", default-features = false, features = ["parse"] }
+
+# **`openat`, `mkdirat`, `renameat`, `unlinkat` and `fchownat` on held directory
+# descriptors**, none of which `std` offers, for the stores this daemon writes as
+# root inside a directory an application owns (`src/beneath.rs`). Declarations
+# only: on musl it resolves against the libc `std` already links, and `ring`
+# already brings this crate into this binary's graph, so it adds an edge and no
+# code. Walled: no `libc` name appears outside `src/beneath.rs`.
+[target.'cfg(target_os = "linux")'.dependencies]
+libc = "0.2"
+
+[dev-dependencies]
+# **A certificate to hand a real handshake, and only in tests.** `crate::
+# transport`'s TLS half cannot be exercised against a fake: the defect it now
+# guards against — a reply larger than rustls's own write buffer — lives inside
+# `rustls`'s flow control and is invisible to anything that stands in for it.
+# So the tests mint an identity and run a real session over loopback, which is
+# also why this is a dev dependency: `ADR-025` §3 keeps minting on a host, and
+# rcgen drags in `time` (rivet-tls's own Cargo.toml says the same, in the same
+# words, for the same reason).
+rcgen = { version = "0.14", default-features = false, features = ["ring"] }
+
+[lints]
+workspace = true
+

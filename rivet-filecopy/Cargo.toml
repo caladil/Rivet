@@ -1,0 +1,53 @@
+# **The backup copy engine, hoisted to its third consumer** — `.rulings/`
+# R-181/R-183, `backup-gaps-design/DRAFT.md` §2.1 (maintainer's scratchpad).
+#
+# `cmd/rivet-provision/src/backup.rs` wrote `copy_all` for `ca backup`/
+# `restore` (SPEC-05 §4.0). `cargo rivet key backup`/`restore` (ADR-028,
+# this work) is the second caller and `cargo rivet fleet objects backup`/
+# `restore` (ADR-052 §7.3) is the third, in the SAME binary as the second —
+# `AGENTS.md` §8.4 pulls a shared thing out at the third consumer rather
+# than the tenth, and the two consuming BINARIES (`rivet-provision`,
+# `cargo-rivet`) is what forces a real crate: neither has a `[lib]` target
+# the other could depend on (`ADR-014` §2's rule, `rivet-fleet-repo`'s own
+# header makes the identical argument for the identical reason).
+#
+# # Why not `rivet-core`
+#
+# `ADR-014` §3: *"rivet-core … NO I/O."* This crate is nothing BUT I/O —
+# `std::fs::read_dir`, `std::fs::copy`, `std::fs::metadata` — so it cannot
+# live there under any reading of that rule, and `rivet-crypto`'s own
+# `§2.3` precedent (a supporting crate sibling to core, pushed out
+# specifically because core may take no dependency at all) is the shape
+# this follows instead: ordinary Rust `std::fs`, no platform types, no
+# adapter, a sibling of `rivet-crypto` and `rivet-fleet-repo` rather than a
+# member of either.
+#
+# # Why its own crate rather than folding onto `rivet-fleet-repo`
+#
+# `rivet-fleet-repo` is already depended on by both binaries this crate
+# needs, which made it the cheaper-looking home. Rejected: that crate's
+# whole job is ONE tree's text half (documents, the register projection) —
+# `ADR-052` §9 step 2 — and a generic byte-copying engine has nothing to do
+# with either. Folding it in would make `rivet-fleet-repo` answer two
+# unrelated questions, which is the failure `ADR-011` names.
+[package]
+name = "rivetos-filecopy"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "The refuse-or-replace, named-and-sized backup copy engine shared by rivet-provision (ca backup/restore) and cargo-rivet (key backup/restore, fleet objects backup/restore)."
+
+# No dependencies beyond std, deliberately — the same posture `rivet-core`
+# takes and for the same reason (ADR-014 §3): this crate's whole surface is
+# ordinary filesystem calls, and adding a dependency here would be adding
+# one to every host tool that backs anything up.
+[dependencies]
+
+[lints]
+workspace = true
+
+[lib]
+name = "rivet_filecopy"
+path = "src/lib.rs"

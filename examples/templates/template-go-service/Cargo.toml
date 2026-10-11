@@ -1,0 +1,84 @@
+# **A NETWORK SERVICE IN GO, and the thing to copy when you are writing one.**
+#
+# `ADR-036` §6.2. The companion to `examples/templates/template-network-service`, which is
+# the same idea in Rust.
+#
+# ## Nothing here is built by cargo
+#
+# This `Cargo.toml` exists for ONE reason: `[package.metadata.rivet]` below is
+# where a Rivet manifest lives, and `cargo rivet package --binary` reads it
+# without building anything. The pattern is `deploy/aura/controller`'s.
+#
+# Build the program with `./build.sh`, or by hand:
+#
+#   CGO_ENABLED=0 GOOS=linux GOARCH=arm64 \
+#     go build -trimpath -tags timetzdata -ldflags="-s -w" -o template-go-service .
+#
+# **`CGO_ENABLED=0` is what makes this static** — no loader, no libc, and
+# `library = []` below is therefore honest rather than hopeful (`ADR-015` §3.1).
+# It also means **no container is needed**: unlike a Rust `-sys` crate that
+# compiles C, a pure-Go cross-compile is two environment variables and works
+# from Windows, macOS or Linux with nothing else installed.
+#
+# **`-tags timetzdata` is not optional.** A Rivet has no `/usr/share/zoneinfo`
+# (`SPEC-01` §5.2), so `time.LoadLocation` silently falls back to UTC on a
+# machine whose owner set a timezone. Silent is the problem; the tag embeds the
+# IANA database in the binary.
+#
+# ## Why it declares TWO sockets
+#
+# To prove the supervisor hands over more than one and that a program can tell
+# them apart. Nothing had exercised that. See `main.go` for the names.
+[workspace]
+
+[package]
+name = "template-go-service"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+# **The manifest IS the permission request** (`ADR-015` §3.3), and a declaration
+# is two-sided: plumbing granted, obligations owed (`ADR-036` §8A).
+[package.metadata.rivet]
+kind    = "daemon"
+
+# **One TCP socket, for a person with a browser.** It arrives named `tcp-8090`
+# — never the `tcp:8090` written here, because `LISTEN_FDNAMES` is
+# colon-separated and this spelling would reach the program as two names.
+#
+# 8090 because 8080 is `aura-controller`'s and 8088 is the Rust template's on
+# the maintainer's board. A port already in use is a fact about a machine rather
+# than about an artifact, and the supervisor refuses to start the service rather
+# than letting it fail halfway — `PLAN.md` §105.3.
+listen  = ["tcp:8090"]
+
+# **One socket for ANOTHER APPLICATION**, which is the half `listen` cannot
+# express (`ADR-015` §5.3, `cmd/rivet-sysd::endpoints`).
+#
+# Both arrive the same way — the supervisor folds a `provides` into the listen
+# set, binds it, and passes the descriptor with the endpoint's name in
+# `LISTEN_FDNAMES`. What `provides` adds is that the socket FILE can be granted:
+# the supervisor chowns it to the uid of the one application whose manifest
+# declares `connects = ["template-go-service:api"]`, for as long as that
+# application runs.
+#
+# **One consumer per endpoint**, because the grant is a chown and a chown names
+# one uid. If two applications declare `connects` on this, both are refused by
+# name and neither is started.
+provides = ["socket:api"]
+
+# `/state/app/template-go-service/data`, mode 0700, owned by this application's
+# own uid (`ADR-015` §3.2A). Told to the program as `RIVET_APP_DATA`.
+state   = "private"
+
+# It answers; it does not call out.
+network = "none"
+restart = "on-failure"
+
+# **`listening`, not `notify`.** The supervisor already holds both sockets, so
+# it can see this service is answering without being told.
+ready   = "listening"
+
+# **Nothing.** `CGO_ENABLED=0` produces a static binary — see the note above.
+library = []

@@ -1,0 +1,74 @@
+[package]
+name = "rivetos-initd"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Rivet's PID 1. ADR-017 §3.1.5 is its complete job list."
+
+[dependencies]
+rivetos-core = { path = "../../rivet-core" }
+rivetos-render = { path = "../../rivet-render" }
+rivetos-config = { path = "../../rivet-config" }
+
+# ADR-004 §6 step 2 — "the result written to the persistent configuration".
+# PID 1 is the only process that ever holds the provisioning document, so it is
+# what writes it; ADR-017 §3.1.8 is the amendment that grew §3.1.5's list for it
+# and src/seed.rs carries the argument. The store declares its own filesystem
+# port and src/seed.rs implements it over `Kernel`, so nothing here reaches
+# std::fs and every failure path is driven by `testkernel`.
+rivetos-store = { path = "../../rivet-store" }
+
+# `ADR-018` §5's A/B boot primitive, behind the boot-slot port (x86 has no `tryboot`; ruled 2026-08-23).
+# It was `src/slots.rs` in this crate until 2026-08-23 and moved out because a
+# binary crate has no lib target, so nothing else could ever name `BootSlots` —
+# and `ADR-028` §4 does not say which process executes an update. It declares its
+# own `BootMedium` port and `src/slots.rs` implements it over `Kernel`, so
+# nothing here reaches std::fs and every failure path is driven by `testkernel`.
+# The same arrangement `rivet-store` has, for the same reason.
+#
+# It is also the one authority for the Raspberry Pi's boot facts — the boot disk,
+# the two device-tree properties, and the partition whose `autoboot.txt` the
+# firmware reads. `src/provision.rs` re-exports them rather than keeping a second
+# copy (`ADR-011`).
+rivetos-adapter-image = { path = "../../rivet-adapter-image" }
+
+# `ADR-063` §4.2: a fleet-root mode fleet server's root is minted HERE, on its
+# first boot. `src/fleet_root.rs` says why PID 1 rather than the fleet
+# service, and `rivet-fleet-root/Cargo.toml` what minting brings onto a card:
+# `rcgen` and its date library, all already in `Cargo.lock`.
+rivetos-fleet-root = { path = "../../rivet-fleet-root" }
+
+# The only crate PID 1 needs beyond std: mount(2), waitpid(2), signalfd(2) and
+# the MS_* constants. `rustix` was surveyed first per ADR-009 §3 and rejected —
+# it does not implement signalfd, and its signal-disposition API is doc(hidden),
+# unstable, and documented as unusable in a process that also has a libc
+# present, which this one does. The reasoning is in src/main.rs's module docs.
+#
+# `libc` is declarations only; its build script compiles no C. On
+# aarch64-unknown-linux-musl it resolves against the musl `std` already links,
+# so ADR-026 §3.1 still holds: Rivet's own binaries need no C cross-toolchain.
+# Walled per ADR-009 §3.4 — no libc type escapes cmd/rivet-initd.
+libc = "0.2"
+
+[lints.rust]
+# PID 1 talks to the kernel directly. `unsafe` is required here; every block
+# carries a SAFETY comment.
+#
+# **This used to say "and nowhere else in the workspace".** `cmd/rivet-splash`
+# became the second on 2026-08-30 — a framebuffer's colour order can only be
+# asked for with an ioctl — and the sentence was corrected rather than left to
+# quietly become false, which is `AGENTS.md` §7.
+unsafe_code = "allow"
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+
+[[bin]]
+# The PACKAGE is `rivetos-initd` and the BINARY is `rivet-initd`, which is what
+# /system/bin holds and what an operator types. ADR-033 §4.
+name = "rivet-initd"
+path = "src/main.rs"

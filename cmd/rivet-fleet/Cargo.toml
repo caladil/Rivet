@@ -1,0 +1,116 @@
+[package]
+name = "rivetos-fleet"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "rivet-fleet — the fleet register (ADR-034). Composes provisioning documents, records which machine holds which credential, and applies a member's document. Software reaches a machine through `cargo rivet deploy`, not this tool. A HOST tool: it never runs on a Rivet, and it holds no signing key."
+
+[[bin]]
+name = "rivet-fleet"
+path = "src/main.rs"
+
+# **A HOST tool, and the first binary in this project where `AGENTS.md` §8.4's
+# Ignition default actually lands** — `ADR-034` §10.3. Every other binary here
+# excluded Ignition and recorded why, and reading those reasons together shows
+# they are all one reason: *being on a device*. `ignition::update` cannot be
+# compiled out, and a self-updater reachable from a machine whose update model
+# is `ADR-018` §5's A/B images would be a second updater. `rivet-fleet` is not
+# on a device: it has configuration to load, somewhere to log, and self-update
+# is a feature rather than a hazard.
+[dependencies]
+# Configuration, structured logging, self-update, and the standard CLI surface.
+# A git dependency on a tag, which is how every other project of this
+# maintainer's consumes it. `deny.toml`'s `[sources]` names the URL explicitly
+# rather than relaxing `unknown-git`.
+# The control-plane key format, shared with the board that reads it and the
+# tool that mints it. ADR-011: one spelling of "an Ed25519 pin" in the
+# workspace. It brings rustls, which never runs here -- only parse_pins and
+# encode_hex are used -- and that is the price of not writing a second hex
+# decoder whose disagreement would be silent.
+rivetos-tls = { path = "../../rivet-tls" }
+
+ignition = { git = "https://github.com/caladil/Ignition", tag = "v0.3.0" }
+
+# `ADR-034` §11.1: `rivet-fleet` speaks `ADR-006` §6.4's verbs and lets `clap`
+# do the parsing. `cmd/rivet` hand-tokenises because it is a login shell that
+# must refuse anything a shell would interpret; this tool
+# has no such duty. **Two parsers, one vocabulary.**
+#
+# Ignition already depends on clap and returns a `clap::Command` from its CLI
+# builder, so this is the same crate rather than a second one — and the feature
+# list is Ignition's plus nothing, deliberately: a feature enabled here is
+# enabled for Ignition too, since features are additive.
+clap = { version = "4", default-features = false, features = [
+    "std",
+    "help",
+    "usage",
+    "error-context",
+    "suggestions",
+    "string",
+] }
+
+# `ADR-034` §11.3, ruled 2026-08-26: adopt `ratatui`. §3.1's textbook case — a
+# solved problem someone else maintains — and §2.2's three-platform requirement
+# makes hand-rolling actively bad, because the part nobody wants to write or
+# test is a Windows console backend.
+#
+# **`ADR-005` §5.5's rejection of `crossterm` does not bind here** and `ADR-034`
+# §4.3 records why in advance: that rejection was explicitly about a binary
+# shipping in the base image, where signal disposition is PID 1's. This runs on
+# a workstation.
+# **0.30 and not 0.29, and the reason is `cargo deny`.** 0.29 pulls `paste`,
+# which RUSTSEC records as unmaintained, and `deny.toml`'s advisories check
+# refuses it. 0.30 does not — so the constraint was met by moving rather than by
+# adding an ignore, which is the direction that leaves the policy meaning what
+# it says.
+ratatui = "0.30"
+
+# The register's own records, and `ignition::config` requires it of any schema
+# it loads. **This is not a decision about `rivet-config`**, whose manifest
+# records that serde derives on the document schema are the maintainer's call:
+# nothing here derives anything on a `rivet-config` type.
+serde = { version = "1", features = ["derive"] }
+
+# The register is TOML — `ADR-034` §10.2 — and this is the same parser
+# `rivet-config` and `cargo-rivet` take. Two TOML parsers in one workspace would
+# be two answers to "what does this file say" (`ADR-009` §4).
+#
+# **`parse` AND the default serde bridge**, unlike `rivet-config`'s: this crate
+# both reads and writes register records, and it renders them through serde
+# rather than by hand.
+toml_edit = { version = "0.25.13", features = ["serde"] }
+
+# The document it composes. `ADR-034` §11.2: *"it needs `rivet-config`'s
+# document schema, which is the thing it composes"* — and composing through the
+# schema rather than by string-building is what makes a composed document one
+# the machine will actually accept.
+rivetos-config = { path = "../../rivet-config" }
+
+# The vocabulary: `ADR-006` §6.4's verbs, `ServiceName`, and the operation
+# error shape. One verb list for both surfaces.
+rivetos-register = { path = "../../rivet-register" }
+rivetos-core = { path = "../../rivet-core" }
+
+# **The fleet repository's text half** — `ADR-052` §9 step 2. `crate::store`'s
+# own `save`/`save_fleet` go on writing the real register exactly as they do
+# today; `save_projected` (`main.rs`) additionally, and best-effort, projects
+# the same `Register` into `~/.rivet/fleet/register/` and commits — see
+# `rivet-fleet-repo`'s module doc for why that is a projection rather than the
+# register's new home.
+rivetos-fleet-repo = { path = "../../rivet-fleet-repo" }
+
+# BLAKE3, for the credential store's obfuscation keystream. **Not for
+# encryption** — `ADR-034` §10.4 rules that store obfuscated and not encrypted,
+# and `crate::credentials` says so in the file's own first line. This is the
+# hash this project already links; taking a cipher would be pretending the
+# ruling went the other way.
+rivetos-crypto = { path = "../../rivet-crypto" }
+
+# Reaching a member — push, check, install, edit. `ADR-034` §11.5: it calls a
+# library rather than shelling out to `cargo rivet`.
+rivetos-remote = { path = "../../rivet-remote" }
+
+[lints]
+workspace = true

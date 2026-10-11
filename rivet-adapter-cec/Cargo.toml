@@ -1,0 +1,50 @@
+# **The HDMI-CEC adapter — telling the television.**
+#
+# `ADR-039` §8.2 and §8.4. The tenth adapter, created 2026-09-02 under
+# `ADR-014` §5's rule: *"the rest are created as the stage that needs them
+# arrives — the layout is the destination, not a scaffolding requirement."*
+#
+# ## Why this is not `rivet-adapter-system`
+#
+# That crate's territory is `ADR-014` §2's *"procfs, sysfs, mounts — observed
+# state"*, and CEC is neither procfs nor observed: it is an **action on a device
+# node**, sent to a piece of hardware on the other end of a cable. Widening
+# "observed state" to cover a transmit would make the name stop meaning
+# anything.
+#
+# ## Why it needs no library
+#
+# Aura sends CEC by shelling out to `cec-client`, which cannot port: there is no
+# shell in a service's world, no such binary in the image, and `ADR-001` would
+# not admit `libcec` to get one. **None of that is needed.** The kernel's own CEC
+# API is `/dev/cecN` and six ioctls, and *Standby* is a one-byte opcode — so this
+# crate takes exactly the posture `rivet_sdk::screen` takes toward `libdrm`:
+# `libc` and the uapi, and nothing else.
+#
+# ## The kernel half was already there
+#
+# `CONFIG_CEC_CORE=y`, `CONFIG_MEDIA_CEC_SUPPORT=y` and
+# `CONFIG_DRM_VC4_HDMI_CEC=y` are in the built kernel — they arrive with the
+# Raspberry Pi base defconfig — and `/dev/cec0` and `/dev/cec1` are on the
+# board. `ADR-039` §8.4 records that this was claimed to be missing for a day,
+# on evidence that had searched the repository and never asked the machine.
+[package]
+name = "rivetos-adapter-cec"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "HDMI-CEC over /dev/cecN — telling the television to sleep. ADR-039 §8."
+
+[lib]
+name = "rivet_adapter_cec"
+path = "src/lib.rs"
+
+[dependencies]
+# The uapi and six ioctls. Nothing else, and nothing that pulls in a C library
+# at build time — this cross-compiles with no `cc` in sight.
+libc = "0.2"
+
+[lints]
+workspace = true

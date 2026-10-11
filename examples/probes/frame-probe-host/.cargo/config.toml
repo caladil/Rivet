@@ -1,0 +1,35 @@
+# **The cross linker, and the two flags that make this program able to load an
+# addon at all** — `ADR-040` §10.
+#
+# `.cargo/config.toml` is found by walking up the DIRECTORY tree, and
+# `cargo rivet package` runs its child build in the crate's own directory for
+# exactly that reason. Without this file, a crate under `examples/` picks up
+# the repository root's `linker = "rust-lld"` — right for the static musl
+# binaries the operating system is made of, and wrong here.
+#
+# ## A statically linked musl program's `dlopen` is a stub that refuses
+#
+# musl supplies the symbol in its static libc so that a program calling it
+# still links, and it returns an error for every argument. So the pack this
+# program accepts could be built correctly, installed correctly, matched
+# correctly and placed on this program's `LD_LIBRARY_PATH` correctly, and still
+# never open. `-C target-feature=-crt-static` is what produces a binary with an
+# interpreter — `/lib/ld-musl-aarch64.so.1` — and a real loader behind it.
+#
+# ## And `rust-lld` cannot do the dynamic link
+#
+# It has no sysroot in which to resolve `libc.so`, and what it says is
+# `unable to find library -lc`, which names neither the sysroot nor the flag.
+# The Buildroot cross GCC drives the link instead, because it is the thing that
+# knows where its own `lib/gcc/<tuple>/<version>/` is. Found on 2026-09-19 by
+# `examples/probes/addon-probe`.
+#
+# **The paths are the build container's.** `ADR-026` §7 makes the container the
+# Linux side of this project and `tools/container/exec.sh` mounts the Buildroot
+# tree at `/br`.
+[target.aarch64-unknown-linux-musl]
+linker = "/br/host/bin/aarch64-linux-gcc"
+rustflags = [
+    "-C", "target-feature=-crt-static",
+    "-C", "link-self-contained=no",
+]

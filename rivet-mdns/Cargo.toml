@@ -1,0 +1,31 @@
+[package]
+name = "rivetos-mdns"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "The mDNS CLIENT half — one-shot `.local` resolution, the query counterpart to the `rivet-mdnsd` responder. Turns a `<host>.local:<port>` into socket addresses so a control-plane client can dial a DHCP member by name; anything not `.local` falls through to the OS resolver unchanged. PLAN.md 23, ADR-005 3."
+
+[lib]
+name = "rivet_mdns"
+path = "src/lib.rs"
+
+# A library BOTH ends link: `rivet-remote` (the host tools' control-plane
+# client) and `cmd/rivet-fleetd` (a fleet server's, on a card). Two independent
+# connect paths that each did their own `to_socket_addrs` and so each reported a
+# DHCP member `unreachable`; this is the one place the `.local` lookup lives, so
+# they cannot drift — `ADR-011`, the same reasoning `rivet-tls` records for the
+# pin logic the card and the host both need.
+[dependencies]
+# The query side of the SAME crate `cmd/rivet-mdnsd` responds with — one wire
+# format, one implementation of it, answering and asking. `sync` and not
+# `async-tokio` for the responder's own reason, recorded at the same dependency
+# in `cmd/rivet-mdnsd/Cargo.toml`: a
+# one-shot query sends a packet and reads the first answer off a socket that
+# already times itself out, so an executor would be a dependency bought for
+# nothing.
+simple-mdns = { version = "0.7", default-features = false, features = ["sync"] }
+
+[lints]
+workspace = true

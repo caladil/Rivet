@@ -1,0 +1,44 @@
+# **A consumer that connects and deliberately never reads** — the other half of
+# `tools/qemu/adr-041-proof.sh`.
+#
+# `ADR-041` §6.3 rules that a consumer which cannot keep up has records
+# *dropped, counted and reported*, and is never blocked on, because a blocking
+# write would let a slow application stall the one process on the machine that
+# is reading the radio. Until this existed that path had been taken by
+# `cmd/rivet-bluetoothd/src/stream.rs`'s own unit test over a `socketpair` and
+# by nothing else — no supervisor, no grant, no real socket, no real daemon.
+#
+# **It does not read on purpose, and that is the least clever way to be slow.**
+# A consumer that read slowly would make the proof a race between two loops; one
+# that reads nothing fills the socket buffer in a bounded number of writes and
+# keeps it full, so the daemon's `EWOULDBLOCK` is certain rather than likely. It
+# is a fixture and it is not a shape to copy.
+[workspace]
+
+[package]
+name = "ble-backpressure"
+version = "0.0.1"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+authors = ["Joel Lindell"]
+publish = false
+description = "A Rivet application that takes the advertisement endpoint and never reads it, for the QEMU harness."
+
+[package.metadata.rivet]
+kind = "daemon"
+# `never`, unlike `examples/probes/ble-listen`. This program is not supposed to
+# come back: if it exits, the endpoint is released, the daemon stops dropping,
+# and a restart would make the proof's evidence appear and disappear.
+restart = "never"
+ready = "none"
+network = "none"
+state = "none"
+connects = ["rivet-bluetoothd:advertisements"]
+library = []
+
+[dependencies]
+rivetos-sdk = { path = "../../../rivet-sdk", features = ["bluetooth"] }
+
+[profile.release]
+panic = "abort"
+strip = "symbols"

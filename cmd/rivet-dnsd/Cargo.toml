@@ -1,0 +1,44 @@
+[package]
+name = "rivetos-dnsd"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Rivet's name service. Answers for the fleet's home.arpa names from the document's [dns] table and forwards every other query upstream. ADR-047."
+
+[[bin]]
+name = "rivet-dnsd"
+path = "src/main.rs"
+
+[dependencies]
+# The document's `[dns]` table, read with the parser every other reader of the
+# document uses (`ADR-011`).
+rivetos-config = { path = "../../rivet-config" }
+
+# **For the handed sockets alone** — the supervisor binds UDP 53 and TCP 53 and
+# passes the descriptors (`ADR-047` §6).
+rivetos-sdk = { path = "../../rivet-sdk" }
+
+# **`ADR-047` §2's decision, at the version its study and probe measured.**
+# `resolver` is the forwarder, which is the half the dependency is taken for
+# (§3): EDNS0 relayed both ways, TCP after truncation, random transaction IDs,
+# source checking and a bounded outstanding-query table. No hickory type
+# leaves `src/serve.rs` (`ADR-009` §4).
+hickory-server = { version = "0.26", features = ["resolver"] }
+
+# `hickory-server` owns the process loop and it is a tokio one (`ADR-009`
+# §3.4). `rt` and `net` are what `Server` needs; `macros` is `#[tokio::main]`.
+tokio = { version = "1", features = ["rt", "net", "macros"] }
+
+# Deliberately NOT here: `ignition`, for the reason every on-device binary
+# refuses it (`ADR-034` §10.3) — its self-updater cannot be compiled out and a
+# machine updated by A/B images must not carry a second updater.
+
+[dev-dependencies]
+# The same tokio with `time`, for the tests' receive timeout: a datagram that
+# is never answered has to end the wait.
+tokio = { version = "1", features = ["rt", "net", "macros", "time"] }
+
+[lints]
+workspace = true

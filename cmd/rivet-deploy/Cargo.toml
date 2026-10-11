@@ -1,0 +1,81 @@
+[package]
+name = "rivetos-deploy"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Rivet's deploy binary. Verifies an .rvt and installs it — a system update into the inactive slot, or an application. ADR-029 §9.2, ADR-015 §7.1."
+
+# WHY THIS IS ITS OWN BINARY, at the dependency table where the cost is visible.
+#
+# The maintainer's 2026-08-24 ruling. The recommendation was `cmd/rivet`;
+# the maintainer took a third option, and the argument was the caveat rather
+# than the case: an update writes 640 MiB, and doing that from the login shell
+# means an operator's session owns a long write. A dropped connection owns a
+# half-written slot.
+
+[dependencies]
+# The container, the verifier and the ports. `ADR-029` §11 rules ONE verifier
+# with full scrutiny, so nothing here re-implements any of it: this crate reads
+# a header through `package::read::open` and touches no byte of the format.
+#
+# Zero transitive dependencies — `rivet-core`'s own `[dependencies]` table is
+# empty by rule (`ADR-014` §3).
+rivetos-core = { path = "../../rivet-core" }
+
+# The A/B primitive and the install PLAN. `ADR-029` §9.2 steps 4, 5, 7 and 8's
+# decisions live in `rivet_adapter_image::install`; this crate performs them
+# and decides nothing.
+rivetos-adapter-image = { path = "../../rivet-adapter-image" }
+
+# BLAKE3 and Ed25519, behind `rivet-core`'s ports. `ADR-029` §7.
+#
+# This is the second consumer that crate was created for. Its own manifest names
+# them as `cmd/rivet` and `cmd/rivet-image`; ruling 1 moved the board-side
+# half here, and the argument for the crate is unchanged and now stronger —
+# **three** binary crates with no lib target would otherwise each hold a copy of
+# the most security-sensitive code in the project.
+rivetos-crypto = { path = "../../rivet-crypto" }
+
+# `mount(2)`, `umount2(2)` and `clock_gettime(CLOCK_MONOTONIC)`, none of which
+# `std` has. Confined to `src/syscall.rs`, which is the whole of the `unsafe`
+# permitted below, and no `libc` type appears outside it (`ADR-009` §3.4).
+libc = "0.2"
+
+# Deliberately NOT here, with the reason recorded per `ADR-009` §3:
+#
+#   ignition   The identical argument `cmd/rivet-netd`, `cmd/rivet-initd`,
+#   clap       `cmd/rivet-sysd` and `cmd/rivet-timed` all record in
+#              their own manifests: this binary parses four flags and a path,
+#              and being the one boot binary that links a configuration
+#              framework to avoid forty lines of argument parsing is not a trade
+#              any of them took.
+#   rivet-config  An install reads no configuration document. What it needs
+#   rivet-store   from the machine is the firmware's answer about which slot
+#                   is running, and that is `rivet-adapter-image`'s. `ADR-018`
+#                   §5.2: "/state is never touched by an update", and `ADR-029`
+#                   §9.2 step 6 verifies by streaming, so there is no staging
+#                   file and therefore zero /state wear.
+
+[lints.rust]
+# One `unsafe` region, in `src/syscall.rs`, for `mount`, `umount2`,
+# `clock_gettime` and `sync`. Every block carries a SAFETY comment and there are
+# no others in this crate.
+unsafe_code = "allow"
+
+[lints.clippy]
+# Stricter than the workspace's `warn`, matching `cmd/rivet-sysd`,
+# `cmd/rivet-timed` and `cmd/rivet`. This process is allowed to FAIL — the
+# whole of `ADR-029` §9's failure table is about failing safely — but a panic is
+# not a failure, it is a process that stopped mid-write without saying why. The
+# one thing an installer must always do is say what it did.
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+
+[[bin]]
+# The PACKAGE is `rivetos-deploy` and the BINARY is `rivet-deploy`, which is what
+# /system/bin holds and what an operator types. ADR-033 §4.
+name = "rivet-deploy"
+path = "src/main.rs"

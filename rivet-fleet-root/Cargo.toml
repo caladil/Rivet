@@ -1,0 +1,71 @@
+[package]
+name = "rivetos-fleet-root"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "A fleet's certificate root and its server's leaf, minted on the fleet server. ADR-063 §4.2."
+
+# Why this is a crate, and why it ships on a card.
+#
+# `ADR-063` §4.2 (`.rulings/` R-228 item 4) mints a fleet-root mode fleet's
+# root ON THE FLEET SERVER at first boot, so the root cannot be left behind on
+# a workstation. That puts certificate minting on a card for the first time:
+# `rivet-tls` and `cmd/rivet-mcpd` keep `rcgen` a dev-dependency precisely so
+# no card binary mints, and for every certificate they concern — the pinned
+# control-plane identities of `ADR-025` — that stays true. This crate is the
+# one exception, and it is a library so the two binaries that mint can be
+# tested here, on any host, without a board: `cmd/rivet-initd`, which mints the
+# root (its `fleet_root` module says why PID 1), and `cmd/rivet-sysd`, whose
+# forked helper issues every later leaf from it (`ADR-063` §4).
+#
+# It performs no I/O. The caller hands it the request, a random source and the
+# time, and gets PEM back; where anything is written is the caller's business.
+
+[dependencies]
+rivetos-core = { path = "../rivet-core" }
+
+# **Minting.** The same version and the same `ring` backend every other
+# minting crate in this workspace uses (`cmd/rivet-provision`,
+# `cmd/cargo-rivet`), and ring is already on every card through `rustls`.
+# What this adds to a CARD for the first time is rcgen itself and the crates
+# it brings — `time` and its companions, `yasna` and `pem` — every one of them
+# already in `Cargo.lock` through the workstation tools, so no new crate enters
+# the lock. `x509-parser` is deliberately NOT enabled: PID 1 never parses a
+# certificate back (see `src/lib.rs` on why the server's leaf rests beside the
+# root), and `src/judge.rs` reads the few fields the supervisor judges a leaf
+# on with a DER walk of its own, so none of that parser reaches a card.
+rcgen = { version = "0.14", default-features = false, features = ["ring", "pem"] }
+
+# SHA-256 of the root's DER, for the fingerprint PID 1 journals. Already linked
+# by `rcgen` above; named so the edge is declared.
+ring = "0.17"
+
+[dev-dependencies]
+# **The verifier that will judge these certificates**, as `cmd/rivet-provision`'s
+# tests build it: a browser's chain check is what matters, and rustls's
+# `WebPkiServerVerifier` applies the root's name constraint the way a browser
+# does.
+rustls = { version = "0.23", default-features = false, features = ["std", "ring"] }
+rustls-pki-types = "1"
+# To read the constraint and the names back out of what was minted, with a
+# parser independent of the one that wrote them.
+x509-parser = "0.18"
+# To forge, in a test, a certificate the root's own key signs for a name
+# outside its constraint. The `x509-parser` feature is what reads a root back
+# as an issuer; it reaches tests only.
+rcgen = { version = "0.14", default-features = false, features = ["ring", "pem", "x509-parser"] }
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+# PID 1 links this. A panic there is a kernel panic.
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+
+[lib]
+name = "rivet_fleet_root"
+path = "src/lib.rs"

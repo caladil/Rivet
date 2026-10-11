@@ -1,0 +1,60 @@
+# **The first program on a Rivet that uses the GPU.** `PLAN.md` §104.17.
+#
+# `kiosk-demo` proves `ADR-015` §6.2's grant with no dependencies at all, and
+# that is the reason this is a SEPARATE example rather than a mode of it: the
+# moment `kiosk-demo` needed `libEGL` to build, it would stop being able to
+# prove the grant on a board that has no Mesa. Two artifacts, two claims.
+#
+# It is also a launcher entry. The maintainer named three — Aura, kiosk-demo and
+# this — so each has to be independently installable and independently granted
+# the display, which is what an application `.rvt` is.
+[workspace]
+
+[package]
+name = "mesa-demo"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[package.metadata.rivet]
+kind    = "daemon"
+restart = "always"
+ready   = "none"
+library = []
+
+# **`display` covers the one node this needs**, which is the render node.
+#
+# ~~`rivet_core::service`'s `device_globs` grants `/dev/fb0`, `/dev/dri/card*`
+# AND `/dev/dri/renderD*` for one declaration — so the render node this draws
+# with and the framebuffer it shows the result on arrive together.~~
+# **Corrected 2026-09-04** (`ADR-036` §3.1, `.rulings/` R-138): a LESSEE's
+# `display` expands to `/dev/dri/renderD*` alone. That costs this probe nothing.
+# It answers its question — `GL_RENDERER` — entirely on the render node, and it
+# already declined to write `/dev/fb0` under a supervisor on its own reasoning:
+# the framebuffer is a second device onto the same panel, so writing it goes
+# around whatever holds the screen. See `allowed_to_draw` in `src/main.rs`.
+#
+# `input` is here for the launcher's sake rather than this program's: an entry
+# a person can start and cannot stop is not something to put in a menu.
+devices = ["display", "input"]
+
+[dependencies]
+
+[profile.release]
+# **`abort` so that `libgcc_s` is not in this binary's NEEDED.**
+#
+# It is the compiler's unwinder, and Rust links it to carry a panic. The
+# maintainer ruled Mesa into the system image on the ground that its version
+# must match the kernel's (`.rulings/` R-355) — libgcc_s does not, so an
+# application that made the platform promise it would be widening that
+# exception past its own reason. A program that aborts needs no unwinder and
+# the question does not arise.
+#
+# It costs nothing here: this program's failure paths already report and idle
+# rather than unwind, because a supervisor restarting a crashed demo forever is
+# worse than one clear line.
+panic = "abort"
+opt-level = "s"
+lto = true
+strip = true

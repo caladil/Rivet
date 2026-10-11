@@ -1,0 +1,31 @@
+[package]
+name = "rivet-vhci-fixture"
+version = "0.0.1"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+authors = ["Joel Lindell"]
+publish = false
+description = "A virtual Bluetooth controller for the QEMU harness: it creates /dev/vhci and injects LE advertising reports."
+
+# Its own workspace root, deliberately, on `tools/qemu/testapp`'s terms exactly:
+# it is not part of the system (`ADR-014` §2 lists what is), it is a fixture the
+# emulator harness needs, and making it a member would put it in
+# `cargo build --workspace` and in the crate count `AGENTS.md` §10 keeps
+# correcting.
+[workspace]
+
+# **No dependencies, and that is the point.** `ADR-041` §8.3.2 records that
+# `rivet_core::bluetooth`'s encoder and `rivet_sdk::bluetooth`'s decoder are two
+# implementations of one line format on purpose, and that 2,793 lines off the
+# air proved they agree about bytes this repository did not compose. A fixture
+# that reached for `rivet_core::bluetooth` to build an advertising report would
+# undo that: the daemon's parser would be reading its own crate's output, and a
+# shared misreading of the specification would pass. So the HCI event bytes here
+# are composed from the Core specification and from
+# `include/net/bluetooth/hci.h`, by hand, and nothing links the two sides.
+[dependencies]
+
+[profile.release]
+panic = "abort"
+opt-level = "z"
+strip = true

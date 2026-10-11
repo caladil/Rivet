@@ -1,0 +1,94 @@
+[package]
+name = "rivetos-smbd"
+# **A literal, and not `version.workspace = true`.** `cargo rivet package` reads
+# this file as plain TOML and refuses an inherited version — it has only ever
+# packaged `hello-app`, a DETACHED fixture with a literal, so it has never
+# packaged a workspace member (PLAN.md §69). Provisional either way: an
+# application's version is its own rather than the operating system's
+# (ADR-027 §10 makes the workspace version the IMAGE's), and if smbd turns out
+# to be a system binary this goes back to inheriting.
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "SMB file sharing for a Rivet machine — PLAN.md §23.5, §57, §69."
+
+[dependencies]
+# **The protocol, and Rivet does not implement it.** `PLAN.md` §23.5's survey
+# is the authority: this crate carries all 19 of MS-SMB2's commands, dialects
+# 2.0.2 through 3.1.1, server-side NTLMv2 against MS-NLMP §4.2.4's known-answer
+# vectors, SP 800-108 CTR KDF, SMB 3.1.1 SHA-512 pre-auth integrity, and
+# HMAC-SHA-256 / AES-128-CMAC signing — and it answers
+# `FSCTL_VALIDATE_NEGOTIATE_INFO`, which is the one interop gotcha that silently
+# tears down a Windows connection and which Samba itself once got wrong.
+#
+# It has been mounted from **Windows 11 25H2 with `RequireSecuritySignature:
+# True`**, negotiating `Smb311`, with a 1 MiB round trip byte-identical
+# (§23.5). So what this crate is FOR is a backend, configuration, and interop —
+# not a protocol.
+#
+# ~~**Pinned exactly, and `vendor-and-own` is NOT yet ruled.**~~ **RULED
+# 2026-09-04: vendor and own it** (`.rulings/` R-134). §23.5 recommended it and
+# gave the reason: the crate is young (121 downloads, 8 stars, no commits in
+# four months) and the fork exists because the first real consumer found two
+# remote denial-of-service bugs — client-controlled lengths reaching
+# `Vec::reserve_exact` before validation, which under `panic = "abort"` kills
+# the daemon and every connected client. §57.2 counted the audit at 12,550
+# lines.
+#
+# What made the recommendation a ruling is that the count reached FOUR. §122
+# found two more, in signing, and they are why this daemon could not serve any
+# client that compounds requests — which is every client that is not Windows
+# doing the particular things Windows does. The fix is two hunks, it passes
+# 14/14 on a Pi 4, and it had nowhere to live.
+#
+# **So the source is HERE**, at `vendor/ixr-smb-server`, carrying 0.5.1 plus
+# the hunks VENDORING.md lists. `vendor/ixr-smb-server/VENDORING.md` is the provenance, the
+# diff against upstream, and what owning it obliges. The version is no longer
+# pinned because there is no registry version to pin: this is the copy that is
+# built, and `cargo update` cannot move it.
+#
+# **No encryption.** Verbatim from upstream: *"Encryption (AES-CCM/AES-GCM) is
+# intentionally out of scope for v1."* §23.5 item 1 requires that to be a
+# STATED decision in the configuration document rather than something an
+# operator discovers, and no such document key exists yet — which is why this
+# binary refuses to serve anything it was not explicitly told to (`main.rs`).
+ixr-smb-server = { path = "../../vendor/ixr-smb-server" }
+
+# The async runtime the crate is written against. `PLAN.md` §57.4's second open
+# item is what this costs on four in-order A72 cores, and that is a
+# MEASUREMENT this binary exists to make rather than a thing to argue about.
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "io-util", "signal"] }
+
+# **The package is `rivetos-smbd` and the binary is `rivet-smbd`** — ADR-033 §4
+# splits the two names, and tools/card/build.sh selects by `--bin`.
+[[bin]]
+name = "rivet-smbd"
+path = "src/main.rs"
+
+# ADR-015 §3.2's manifest. `cargo rivet package` translates this into the
+# `manifest.toml` member of the .rvt.
+#
+# **`network = "egress"` is the least wrong value and it is not the right one.**
+# ADR-015 §5's model offers `none`, `egress` and `group:<name>`, and none of
+# them says *accepts connections from the LAN* — which is what a file server
+# does. The key that is supposed to carry that is `listen`, satisfied by
+# ADR-017 §3.2's pre-created socket and §3.4's LISTEN_FDS handoff, and
+# and neither is built. So this binary binds its
+# own socket today and reaches the network because **the sandbox is not
+# enforced on this hardware at all** (ADR-024 §8.1 item 1: the stock Pi kernel
+# has no Landlock). That is stated rather than relied on. PLAN.md §69.
+#
+# `memory` is a REQUEST, and ADR-007 §7.2's document cap wins where it is lower
+# (rivet_core::service::effective_memory). 128M against a measured resident set
+# of a few megabytes is headroom, not a target -- and PLAN.md §66 is why a
+# number here now reaches a cgroup at all.
+[package.metadata.rivet]
+kind = "daemon"
+restart = "on-failure"
+ready = "listening"
+network = "egress"
+state = "private"
+memory = "128M"
+listen = ["tcp:445"]

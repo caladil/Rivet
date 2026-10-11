@@ -1,0 +1,6 @@
+# A Dockerfile is parsed line by line and joins lines on a trailing backslash.
+# Windows `git` runs with `core.autocrlf=true` here (AGENTS.md §10.5), so
+# without this the checked-out file would carry CRLF and every continuation
+# would end in a carriage return — the same class of failure the root
+# `.gitattributes` pins `*.sh` against, and the same fix.
+Dockerfile text eol=lf

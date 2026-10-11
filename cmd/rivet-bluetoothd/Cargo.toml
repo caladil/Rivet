@@ -1,0 +1,63 @@
+[package]
+# **The PACKAGE is `rivetos-bluetoothd` and the BINARY is `rivet-bluetoothd`.**
+#
+# `ADR-033` §4, and it is a fact rather than a preference: rivet.gg owns the
+# `rivet-*` namespace on crates.io. The operator, the journal and the service
+# definition see `rivet-bluetoothd`; only crates.io ever sees the other
+# spelling. Named explicitly in `.rulings/` R-144.
+name = "rivetos-bluetoothd"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Rivet's BLE observer. Holds the one adapter and hands advertisements to one application. ADR-041."
+
+[[bin]]
+name = "rivet-bluetoothd"
+path = "src/main.rs"
+
+[dependencies]
+rivetos-core = { path = "../../rivet-core" }
+
+# **The kernel's Bluetooth sockets, and there is no other way to reach them.**
+#
+# `AF_BLUETOOTH` is not in `std`. Neither is `poll`, nor `CLOCK_MONOTONIC`, nor
+# turning a handed descriptor into a `UnixListener`. `libc` is declarations
+# only — its build script compiles no C — which is the same argument
+# `cmd/rivet-initd`, `cmd/rivet-splash` and `cmd/femto` already made for it.
+#
+# **What is deliberately NOT here is a Bluetooth crate**, and the 2026-09-05
+# study is why. `bluer`'s adapters, scanning and GATT are all behind its
+# `bluetoothd` feature, which is D-Bus calls to BlueZ; `btleplug`, `bluez-async`
+# and `bluster` are bindings to the same daemon. `bt-hci` and `trouble-host` are
+# real and transport-agnostic, and neither ships a Linux transport — the piece
+# this file would have to write anyway. Tier 1 is one socket, five commands and
+# one event parser (`ADR-041` §4), so a codec crate would be more surface than
+# the thing it encodes. `docs/design-candidates/Bluetooth.md` §4.3 is the table.
+libc = "0.2"
+
+# Deliberately NOT here, with the reason recorded per `ADR-009` §3:
+#
+#   ignition       refused for the reason every on-device binary refuses it:
+#                  `ignition::update` cannot be compiled out, and a self-updater
+#                  on a machine whose update model is `ADR-018` §5's A/B images
+#                  is a second updater.
+#
+#   rivetos-config the daemon reads no document. `ADR-041` §6 argues it: tier 1
+#                  has nothing an operator would set that is not already
+#                  `enabled`, and a `[bluetooth]` block with one unmeasured knob
+#                  in it would be a schema written ahead of a measurement.
+
+[lints.rust]
+# **Syscall families with no `std` covering, and every block carries a SAFETY
+# comment.** `cmd/rivet-initd` (PID 1), `cmd/rivet-splash` (a framebuffer
+# ioctl) and `cmd/femto` (terminal control) are the others; this one is here
+# for `AF_BLUETOOTH` and `poll` in `src/sockets.rs`, and for giving up its
+# capabilities in `src/privilege.rs`.
+unsafe_code = "allow"
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"

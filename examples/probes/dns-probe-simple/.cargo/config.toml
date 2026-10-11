@@ -1,0 +1,13 @@
+# **The cross linker.** Without this file the crate builds on the development
+# host and nowhere else — `ADR-040` §10.3. `.cargo/config.toml` is discovered by
+# walking up the DIRECTORY tree rather than the workspace, and the empty
+# `[workspace]` table in `Cargo.toml` does not stop that walk; a copy of this
+# directory taken anywhere else would lose the setting and fail with
+# `crt1.o: Relocations in generic ELF (EM: 183)`, which is not a message about
+# linkers.
+#
+# `rust-lld` ships with the Rust toolchain, so this needs no cross binutils —
+# `ADR-026` §3.1. Nothing here links a system shared library, so none of
+# `template-kiosk`'s three extra settings belongs in this file.
+[target.aarch64-unknown-linux-musl]
+linker = "rust-lld"

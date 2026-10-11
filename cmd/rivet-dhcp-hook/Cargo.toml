@@ -1,0 +1,26 @@
+[package]
+name = "rivetos-dhcp-hook"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "rivet-dhcp-hook"
+path = "src/main.rs"
+
+[dependencies]
+rivet-core = { path = "../../rivet-core", package = "rivetos-core" }
+rivet-adapter-net = { path = "../../rivet-adapter-net", package = "rivetos-adapter-net" }
+libc = "0.2"
+
+[lints.rust]
+# The lease directory is created `0700`, and `std::fs` has no way to say so at
+# create time — `DirBuilder::mode` is behind `std::os::unix::fs`, which is safe,
+# but the umask race it leaves is not. One `mkdir(2)` with an explicit mode, on
+# `cmd/rivet-initd`'s rule and with a SAFETY comment.
+unsafe_code = "allow"
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"

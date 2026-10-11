@@ -1,0 +1,136 @@
+[package]
+name = "femto"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "femto — a tiny nano-shaped editor for Rivet. It refuses to edit a view. ADR-005 §5.5, ADR-007 §3.6."
+
+# `ADR-005` §5.5 ruled "a small Rust editor in the base image", chose size over
+# capability, and left the *specific project* as "an implementation-time
+# decision under `ADR-009`'s survey-first rule". This manifest is where that
+# survey lands, so each entry below is a decision rather than a convenience.
+[dependencies]
+# **The dependency that makes this Rivet's editor rather than a generic one.**
+#
+# `ADR-007` §3.6.2 rules that a generated file is a read-only projection of
+# state owned elsewhere and is *never an interface*, and §3.6.1 item 1 makes
+# `/etc` a tmpfs remounted read-only. An editor that did not know this would do
+# one of the two dishonest things §3.6's table names: write to a read-only
+# mount and report `EROFS` with no explanation, or — on any path under `/etc`
+# the projection does not render — succeed and lose the change at the next
+# boot.
+#
+# `rivet_core::etc::ETC_FILES` is the same authority `rivet explain` answers
+# from (`rivet-core::operation::explain`), so `src/view.rs` reads it rather
+# than restating any of it. That is `ADR-011`: one fact, one owner. A second
+# list here would be a second answer, read at exactly the moment somebody is
+# already confused.
+#
+# `ADR-014` §3: `cmd/*` may depend on everything. What matters is the
+# direction — nothing in this crate is visible to `rivet-core`.
+rivetos-core = { path = "../../rivet-core" }
+
+# `tcgetattr(3)`, `tcsetattr(3)` and `ioctl(TIOCGWINSZ)`. Nothing else.
+#
+# There is no `std` equivalent for any of the three, and an editor that cannot
+# put the terminal into raw mode cannot read an arrow key at all — the shell
+# would still be line-buffering and echoing. So this is the same class of
+# dependency `cmd/rivet`'s manifest argues for `mount(2)`, and it is walled
+# the same way per `ADR-009` §3.4: **no `libc` type appears outside
+# `src/syscall.rs`**, which is `#[cfg(target_os = "linux")]` and holds every
+# `unsafe` block in this crate. What leaves it is `(u16, u16)`, `()` and a bare
+# `i32` errno.
+#
+# On any other platform `src/terminal.rs` supplies a terminal that **refuses**,
+# never one that pretends to have succeeded (`AGENTS.md` §3), so the crate still
+# builds and its whole test suite runs on the Windows development host
+# (`AGENTS.md` §10.5).
+#
+# `libc` is declarations only; its build script compiles no C, and on
+# `aarch64-unknown-linux-musl` it resolves against the musl `std` already links —
+# so `ADR-026` §3.1 still holds and no C cross-toolchain is needed. The survey
+# `cmd/rivet-initd` recorded (`rustix` rejected) applies unchanged and is not
+# repeated.
+libc = "0.2"
+
+# Deliberately NOT here, with the reason recorded per `ADR-009` §3:
+#
+#   crossterm   The obvious choice, and it was measured rather than dismissed.
+#
+#               **Read off `cargo tree --target aarch64-unknown-linux-musl
+#               -e normal` for `crossterm 0.29.0` in a scratch crate on
+#               2026-08-24**, rather than reasoned about — `AGENTS.md` §5. It
+#               resolves **27 crates including itself**, 26 of which femto does
+#               not already have:
+#
+#                 bitflags, cfg-if, convert_case, derive_more, derive_more-impl,
+#                 document-features, errno, libc, linux-raw-sys, litrs,
+#                 lock_api, log, mio, parking_lot, parking_lot_core,
+#                 proc-macro2, quote, rustix, scopeguard, signal-hook,
+#                 signal-hook-mio, signal-hook-registry, smallvec, syn,
+#                 unicode-ident, unicode-segmentation
+#
+#               What this crate wants from it is three things — raw mode, the
+#               window size and an escape-sequence decoder — and they are
+#               `src/syscall.rs` and `src/key.rs`, about 250 lines together,
+#               neither of which is a syscall vocabulary and both of which are
+#               driven by tests on a machine with no terminal.
+#
+#               Two entries in that list are the argument on their own.
+#               **`rustix` and `linux-raw-sys` are a second syscall vocabulary
+#               beside `libc`**, which is exactly what `cmd/rivet-initd`'s
+#               survey rejected, for the reason it gave: taking two to cover one
+#               gap is worse than using one. **`signal-hook` installs signal
+#               handlers**, in a binary `ADR-005` §5.5 puts in the base image of
+#               a system where signal disposition belongs to PID 1 and the
+#               supervisor (`ADR-017` §3.1.10).
+#
+#               `ADR-002` §5.1 makes image size a tracked number and `ADR-001`
+#               §4.4 makes every dependency state its reason; 26 crates for
+#               three functions does not.
+#
+#               **The revisit condition, so this is a decision and not a
+#               posture:** if this editor ever needs bracketed paste, mouse
+#               reporting, or a terminal-capability database, hand-rolling stops
+#               being cheaper than depending and this entry should change.
+#
+#   ratatui /   A layout engine and a widget set. `src/screen.rs` renders four
+#   cursive     regions of fixed height into a `Frame` of styled spans; there is
+#               no layout problem here to solve.
+#
+#   ncurses,    Named in the brief as excluded and excluded for the reason
+#   any C TUI   `ADR-001` §4.4 gives: a C dependency in the image is a build
+#               recipe this project would own, and terminfo is a *data file* on
+#               the target as well as a library.
+#
+#   syntect,    Syntax highlighting. `ADR-005` §5.5 chose "enough to fix a file"
+#   tree-sitter over "enough to enjoy", and a highlighting engine is a grammar
+#               set on the card. The colour here is four styles in
+#               `src/screen.rs`.
+#
+#   ignition    Same argument as `cmd/rivet`'s manifest makes, one level down:
+#               this build loads no configuration, logs nothing, and must not
+#               contain a second self-updater. Revisit when the editor grows a
+#               configuration file — which `ADR-005` §5.5 gives as the reason
+#               `helix` is *not* in the base image, so it should be revisited by
+#               arguing against it.
+#
+#   clap        The surface is one path and two flags.
+
+[lints.rust]
+# This crate makes three syscalls that have no `std` equivalent — see
+# `src/syscall.rs`, which is `#[cfg(target_os = "linux")]`, contains every
+# `unsafe` block in the crate, and carries a SAFETY comment per block.
+unsafe_code = "allow"
+
+[lints.clippy]
+# Stricter than the workspace's `warn`, on `cmd/rivet`'s reasoning and one of
+# this crate's own: `panic = "abort"` is set for the release profile, and a
+# panicking editor is an operator's unsaved buffer gone with no message. It is
+# also a program that leaves the terminal in raw mode when it dies abruptly,
+# which costs the session as well as the edit.
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"

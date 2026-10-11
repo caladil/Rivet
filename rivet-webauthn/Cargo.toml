@@ -1,0 +1,56 @@
+[package]
+name = "rivetos-webauthn"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "A minimal WebAuthn relying party: attestation none, ES256 and Ed25519. ADR-063 §4."
+
+# **Why this is a crate of its own rather than a module of `cmd/rivet-proxyd`.**
+#
+# `rivet-crypto`'s argument, pointed at a different dependency (`ADR-014` §2.3):
+# this is pure computation over bytes a browser sent — no syscall, no platform
+# type, no I/O — so it belongs beside `rivet-crypto` and `rivet-config` as a
+# supporting crate, not inside the daemon that does the I/O. The daemon keeps
+# the network, the files and the clock; this crate keeps every check WebAuthn
+# asks of a relying party, where `cargo test` on any host reaches all of them
+# without a socket. It is not in `rivet-core` because `rivet-core` takes no
+# dependencies at all (`ADR-014` §3), and verifying a signature needs one.
+#
+# **The one new crate is `ciborium`** (`.rulings/` R-230). A browser's
+# attestation object and a credential's public key are CBOR, and nothing else in
+# this workspace reads CBOR. Everything else here was already in `Cargo.lock`.
+
+[dependencies]
+# **Signatures and SHA-256.** `.rulings/` R-230: ES256 (ECDSA P-256 with
+# SHA-256, ASN.1 DER signatures) and Ed25519 are verified by `ring`, which the
+# proxy already links through `rustls`. Same version as that `rustls` uses, so
+# one `ring` is linked.
+ring = "0.17"
+# **CBOR, and only for two structures**: the attestation object and the COSE
+# public key inside its authenticator data. `.rulings/` R-230's one new crate.
+ciborium = "0.2"
+# `clientDataJSON` is JSON the browser serialised, and the browser's answers
+# arrive as JSON. Already in the graph.
+serde_json = "1"
+# WebAuthn spells every binary value in base64url without padding. Already in
+# the graph; the URL-safe, unpadded engine only, so one value has one spelling.
+base64 = "0.22"
+
+[lints.rust]
+# Bytes in, verdicts out. Nothing here needs `unsafe`.
+unsafe_code = "forbid"
+
+[lints.clippy]
+# `rivet-crypto`'s reasoning: this runs over bytes an attacker chose, inside a
+# daemon built with `panic = "abort"`. A verifier that can abort is a denial of
+# service on the machine's front door.
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+
+[lib]
+# ADR-033 §4: the package is `rivetos-webauthn`, the library `rivet_webauthn`.
+name = "rivet_webauthn"
+path = "src/lib.rs"

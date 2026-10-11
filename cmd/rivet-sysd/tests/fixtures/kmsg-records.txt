@@ -1,0 +1,36 @@
+# Records captured verbatim from a running Linux 6.6 kernel's /dev/kmsg on the
+# build host, 2026-08-24. NOT hand-composed: `AGENTS.md` §4 — "a vector captured
+# from real hardware is worth more than a hand-composed one, and the difference
+# must be visible in the file."
+#
+# Selected rather than edited. Lines carrying anything host-specific — the
+# kernel's build identifier, a command line, a machine-id inside a path — were
+# DROPPED rather than rewritten (`AGENTS.md` §8.3), so every line below is
+# exactly what the kernel wrote. These `#` lines are not part of the capture and
+# the reader skips them; a real /dev/kmsg has no comments.
+#
+# What the selection covers:
+#
+#   7,22,...     debug     facility 0 (kernel), a low priority
+#   6,301,...    info      facility 0, and the only record here with the
+#                          continuation lines a device message carries
+#   4,157,...    warning   facility 0
+#   3,224,...    error     facility 0 — the class ADR-004 §8 expects to
+#                          dominate Stage 2 diagnosis
+#   14,404,...   info      facility 1, so `prifac >> 3` is exercised and a
+#                          reader that took the whole number as a priority
+#                          fails here
+#   46,448,...   info      facility 5, likewise, and from userspace rather
+#                          than from the kernel
+#
+# What it does NOT cover, and is therefore tested from the specification with
+# that said out loud: priorities 0, 1 and 2 (emerg, alert, crit). A healthy
+# machine does not produce them, which is the point of them.
+7,22,43,-;e820: update [mem 0x00000000-0x00000fff] usable ==> reserved
+4,157,54256,-;Hyper-V: Disabling IBT because of Hyper-V bug
+3,224,83932,-;PCI: Fatal: No config space access function found
+14,404,222986,-;WSL (1 - ): WSL version 2.7.3.0
+46,448,1158481,-;systemd-journald[42]: Collecting audit messages is enabled.
+6,301,124628,-;pci_bus 5582:00: root bus resource [mem 0x9ffe00000-0x9ffe02fff window]
+ SUBSYSTEM=pci_bus
+ DEVICE=+pci_bus:5582:00

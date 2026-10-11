@@ -1,0 +1,65 @@
+# **The fleet register** — `ADR-034` §2's store, and the authority.
+#
+# # Why it is a library and no longer a module of `cmd/rivet-fleet`
+#
+# It was `cmd/rivet-fleet/src/register.rs` until 2026-09-01, and it moved for
+# the reason `rivet_core::identifier` moved out of the same crate on
+# 2026-08-26: **a second consumer appeared, and a library cannot depend on a
+# binary.**
+#
+# The second consumer is `cmd/rivet-fleetd`. `ADR-034` §2.2's Remote mode puts
+# the register on a Rivet machine, and the maintainer's 2026-09-01 direction
+# dropped Local mode entirely — so the register's home is now a fleet server,
+# which is a program, not the workstation tool that used to own the file.
+#
+# `cmd/rivet-provision` is the third. It composes what a member is; the fleet
+# server records it.
+#
+# **Nothing about the format changed in the move.** `ADR-034` §10.2 ruled TOML,
+# one file per device named by the opaque identifier, and this is that code
+# unaltered — history is preserved through `git mv` rather than a rewrite.
+[package]
+name = "rivetos-register"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "The fleet register: public facts about devices, one TOML file each. ADR-034."
+
+[dependencies]
+# **The register holds no secret** (`ADR-034` §3), so serialising it is an
+# ordinary data problem and `serde` is the ordinary answer. `AGENTS.md` §8.4's
+# question — what does this cost on a device — is answered by what the file IS:
+# public facts, already committed to git, already reviewed as a diff.
+serde = { version = "1", features = ["derive"] }
+
+# `toml_edit` rather than `toml` because `ADR-034` §10.3 requires files that are
+# **good to commit** — stable ordering and no churn — and an editing parser is
+# what preserves a file a human has touched.
+toml_edit = { version = "0.25.13", features = ["serde"] }
+
+# **The identifier grammar, which left this very module.** `rivet_core::identifier`
+# was `cmd/rivet-fleet`'s `register` module until 2026-08-26 and moved into the
+# core when `rivet-config` needed to REFUSE an identifier a document carried.
+# Depending on it here closes the loop: one grammar, and the register is now a
+# consumer of the rule it used to define.
+rivetos-core = { path = "../rivet-core" }
+
+# `ADR-034` §6.1's `listen` falls back to the control plane's default port, and
+# that default has one home (`ADR-011`). A register that spelled the number
+# itself would be the second place a machine's port is written — which is the
+# exact failure §6.1 was ruled to prevent.
+rivetos-config = { path = "../rivet-config" }
+
+# **The crash-safe write, borrowed rather than re-implemented.** `ADR-034`
+# §2.2.1 put this register on `/state` on a machine that can lose power, and
+# `rivet_store::atomic`'s own note is the reason not to copy its four calls:
+# their ORDER is the entire guarantee, and a second copy fails only when
+# somebody pulls the power out. Its real filesystem adapter is `cfg(unix)`
+# because `sync_dir` cannot be honestly implemented on Windows, which is why
+# `store::durably` has two arms and says so.
+rivetos-store = { path = "../rivet-store" }
+
+[lints]
+workspace = true

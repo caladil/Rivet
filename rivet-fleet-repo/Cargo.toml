@@ -1,0 +1,46 @@
+# **The fleet repository's text half** — `ADR-052` §9 step 2.
+#
+# `cmd/cargo-rivet/src/fleet.rs` built step 1, the artifact half, as a module
+# of a bin-only crate — the right call for one consumer. Step 2 has two:
+# `rivet-provision` recording a machine's composed document, and `rivet-fleet`
+# projecting its register. Neither can depend on `cmd/cargo-rivet`, which has
+# no `[lib]` target and is deliberately the only crate here holding a signing
+# key (its own manifest says so) — pulling a text-writing helper out of it
+# would drag that crate's dependency surface along for no reason. `AGENTS.md`
+# §8.4 pulls a shared thing out at the THIRD consumer rather than the tenth,
+# and this is exactly that: cargo-rivet, rivet-provision and rivet-fleet all
+# need "write text into `~/.rivet/fleet`, refuse a seed, commit with a message
+# that says what changed."
+#
+# **`cmd/cargo-rivet/src/fleet.rs` keeps its own copy of the same primitives**
+# — `find_seed`, `seed_refusal`, the `git` shell-out — rather than being
+# refactored onto this crate in the same change. `ADR-052` §9's own ordering is
+# explicit that nothing before step 4 may change the path a maintainer minting
+# a fresh fleet on today's tooling is already walking, and step 1's own module
+# is exactly that path. Folding it onto this crate is left for a later step,
+# named rather than done quietly.
+[package]
+name = "rivetos-fleet-repo"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "The fleet repository's text half: machine documents and the register, committed with attribution. ADR-052 §9 step 2."
+
+[dependencies]
+# The register's own type and its own renderer. `SPEC-05` §4.9's rule, applied
+# here rather than restated: never a second spelling of `register.toml` beside
+# `devices/<id>.toml` — this crate asks `rivetos-register` to render the
+# projection rather than composing that layout by hand.
+rivetos-register = { path = "../rivet-register" }
+
+[dev-dependencies]
+# **One test, and only a test.** `SERVED_NAME` is the workstation's spelling of
+# the repository a fleet server serves; `rivet_core::repository_objects::REPOSITORY`
+# is the machine's, which `cmd/rivet-mcpd` reads a manifest out of. The two must
+# agree, and a test asserting it is cheaper than a dependency edge in the build.
+rivetos-core = { path = "../rivet-core" }
+
+[lints]
+workspace = true

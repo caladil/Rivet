@@ -1,0 +1,35 @@
+# **The three flags a kiosk application needs, and why none of them is obvious.**
+#
+# `PLAN.md` §107.4. Found by building a fresh crate against `rivet_sdk`'s
+# drawing surface and watching it fail at the link step with
+# `rust-lld: error: unable to find library -ldrm`.
+#
+# 1. `-C target-feature=-crt-static`
+#    A kiosk application links `libdrm.so.2`, so it cannot be a static binary.
+#    musl targets default to static, and the failure that produces names the
+#    library rather than the linkage, which sends you looking in the wrong
+#    place.
+#
+# 2. `-C linker=...`
+#    The repository's own `.cargo/config.toml` sets `rust-lld`, correctly:
+#    Rivet's binaries are static and need no cross linker (`ADR-026` §3.1).
+#    An application that links a SYSTEM library needs a linker that knows the
+#    sysroot, and that is the cross GCC.
+#
+# 3. `-L .../usr/lib`
+#    Where `libdrm.so` lives in the Buildroot sysroot.
+#
+# **The paths below come from `tools/toolchain/env.sh`**, which prints them:
+#   RIVET_CC       the cross compiler, used here as the linker
+#   RIVET_SYSROOT  the sysroot those libraries live in
+#
+# They are written out rather than interpolated because a `.cargo/config.toml`
+# cannot read environment variables. **If your toolchain lives somewhere else,
+# these two lines are the ones to change** — and `tools/toolchain/env.sh` will
+# tell you what to change them to.
+[target.aarch64-unknown-linux-musl]
+linker = "/br/host/bin/aarch64-linux-gcc"
+rustflags = [
+    "-C", "target-feature=-crt-static",
+    "-L", "/br/host/aarch64-buildroot-linux-musl/sysroot/usr/lib",
+]
